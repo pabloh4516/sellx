@@ -66,52 +66,52 @@ export function POSLayout({
         {/* Mobile Cart Drawer */}
         <div
           className={cn(
-            "lg:hidden fixed right-0 top-0 bottom-0 w-full sm:w-[380px] bg-card z-50 shadow-2xl transition-transform duration-300 ease-out",
+            "lg:hidden fixed right-0 top-0 bottom-0 w-full sm:w-[340px] md:w-[380px] bg-card z-50 shadow-2xl transition-transform duration-300 ease-out safe-area-inset",
             isMobileCartOpen ? "translate-x-0" : "translate-x-full"
           )}
         >
           {/* Drawer Header */}
-          <div className="h-14 flex items-center justify-between px-4 border-b border-border">
-            <span className="font-semibold text-foreground">Carrinho</span>
+          <div className="h-12 sm:h-14 flex items-center justify-between px-3 sm:px-4 border-b border-border">
+            <span className="font-semibold text-foreground text-sm sm:text-base">Carrinho</span>
             <button
               onClick={() => setIsMobileCartOpen(false)}
-              className="w-10 h-10 rounded-lg hover:bg-secondary flex items-center justify-center"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg hover:bg-secondary flex items-center justify-center"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
           {/* Drawer Content */}
-          <div className="h-[calc(100%-3.5rem)] overflow-hidden">
+          <div className="h-[calc(100%-3rem)] sm:h-[calc(100%-3.5rem)] overflow-hidden">
             {rightPanel}
           </div>
         </div>
       </div>
 
       {/* Mobile Cart Button (Fixed at bottom) */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 p-3 bg-background/95 backdrop-blur border-t border-border z-30">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 p-2 sm:p-3 bg-background/95 backdrop-blur border-t border-border z-30 safe-area-inset-bottom">
         <button
           onClick={() => setIsMobileCartOpen(true)}
-          className="w-full h-14 rounded-xl bg-primary text-primary-foreground flex items-center justify-between px-5 shadow-lg active:scale-[0.98] transition-transform"
+          className="w-full h-12 sm:h-14 rounded-xl bg-primary text-primary-foreground flex items-center justify-between px-3 sm:px-5 shadow-lg active:scale-[0.98] transition-transform"
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="relative">
-              <ShoppingCart className="w-5 h-5" />
+              <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
               {cartItemsCount > 0 && (
-                <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white text-primary text-xs font-bold flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-white text-primary text-[10px] sm:text-xs font-bold flex items-center justify-center">
                   {cartItemsCount > 99 ? '99+' : cartItemsCount}
                 </span>
               )}
             </div>
-            <span className="font-semibold">Ver Carrinho</span>
+            <span className="font-semibold text-sm sm:text-base">Ver Carrinho</span>
           </div>
-          <span className="font-bold text-lg tabular-nums">
+          <span className="font-bold text-base sm:text-lg tabular-nums">
             {formatCurrency(cartTotal)}
           </span>
         </button>
       </div>
 
       {/* Spacer for fixed mobile cart button */}
-      <div className="lg:hidden h-20" />
+      <div className="lg:hidden h-16 sm:h-20" />
 
       {/* All Modals */}
       {modals}
@@ -120,7 +120,7 @@ export function POSLayout({
 }
 
 // ============================================================================
-// POS HEADER - Header do PDV
+// POS HEADER - Header do PDV (responsivo)
 // ============================================================================
 
 export function POSHeader({
@@ -132,17 +132,17 @@ export function POSHeader({
 }) {
   return (
     <div className={cn(
-      "h-14 flex items-center justify-between px-4 border-b border-border bg-card shrink-0",
+      "h-12 sm:h-14 flex items-center justify-between px-2 sm:px-4 border-b border-border bg-card shrink-0",
       className
     )}>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
         {leftContent}
-        <div>
-          <h1 className="font-semibold text-foreground">{title}</h1>
-          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        <div className="min-w-0">
+          <h1 className="font-semibold text-foreground text-sm sm:text-base truncate">{title}</h1>
+          {subtitle && <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{subtitle}</p>}
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {rightContent}
       </div>
     </div>
@@ -150,24 +150,24 @@ export function POSHeader({
 }
 
 // ============================================================================
-// SHORTCUTS BAR - Barra de atalhos do PDV
+// SHORTCUTS BAR - Barra de atalhos do PDV (responsivo - esconde em mobile pequeno)
 // ============================================================================
 
 export function ShortcutsBar({ shortcuts }) {
   return (
-    <div className="h-10 flex items-center gap-1 px-4 border-b border-border bg-muted/30 overflow-x-auto nexo-scrollbar">
+    <div className="hidden sm:flex h-9 sm:h-10 items-center gap-1 px-2 sm:px-4 border-b border-border bg-muted/30 overflow-x-auto nexo-scrollbar">
       {shortcuts.map((shortcut, index) => (
         <button
           key={index}
           onClick={shortcut.onClick}
           disabled={shortcut.disabled}
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
+            "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-colors whitespace-nowrap",
             "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground",
             shortcut.disabled && "opacity-50 cursor-not-allowed"
           )}
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-background text-[10px] font-mono border border-border">
+          <kbd className="hidden sm:inline px-1 sm:px-1.5 py-0.5 rounded bg-background text-[9px] sm:text-[10px] font-mono border border-border">
             {shortcut.key}
           </kbd>
           <span>{shortcut.label}</span>

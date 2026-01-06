@@ -145,10 +145,24 @@ export function OperatorProvider({ children }) {
   // Login do operador
   const loginOperator = useCallback(async (operatorData, password) => {
     try {
-      // Buscar operador pelo codigo ou email
+      // Primeiro, obter o organization_id do usuario autenticado
+      const { data: currentProfile, error: orgError } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', user?.id)
+        .single();
+
+      if (orgError || !currentProfile?.organization_id) {
+        console.error('Erro ao obter organization_id:', orgError);
+        toast.error('Erro ao verificar organizacao');
+        return false;
+      }
+
+      // Buscar operador pelo codigo ou email - APENAS da mesma organizacao
       let query = supabase
         .from('profiles')
         .select('*')
+        .eq('organization_id', currentProfile.organization_id)
         .eq('is_active', true);
 
       if (operatorData.employee_code) {

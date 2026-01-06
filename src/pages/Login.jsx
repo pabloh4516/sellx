@@ -38,20 +38,34 @@ export default function Login() {
       let loginEmail = email;
 
       // Se for login por codigo, buscar o email interno do funcionario
+      // Usa RPC function segura para evitar vazamento de dados entre organizacoes
       if (loginMode === 'code') {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('employee_code', employeeCode.toUpperCase())
-          .single();
+        const { data: result, error: rpcError } = await supabase
+          .rpc('get_employee_email_by_code', { p_employee_code: employeeCode.toUpperCase() });
 
-        if (profileError || !profile) {
+        if (rpcError) {
+          console.error('RPC error:', rpcError);
+          // Fallback para query direta (compatibilidade com bancos sem a RPC)
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('employee_code', employeeCode.toUpperCase())
+            .eq('is_active', true)
+            .single();
+
+          if (profileError || !profile) {
+            toast.error('Codigo de funcionario nao encontrado');
+            setLoading(false);
+            return;
+          }
+          loginEmail = profile.email;
+        } else if (!result || result.length === 0) {
           toast.error('Codigo de funcionario nao encontrado');
           setLoading(false);
           return;
+        } else {
+          loginEmail = result[0].email;
         }
-
-        loginEmail = profile.email;
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({

@@ -405,19 +405,19 @@ export default function Layout({ children, currentPageName }) {
   return (
     <TooltipProvider delayDuration={0}>
       {/* Mobile Header - Fixed at top */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-card border-b border-border z-50 flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-12 sm:h-14 bg-card border-b border-border z-50 flex items-center justify-between px-2 sm:px-4 safe-area-inset">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-10 sm:w-10" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
-              <ShoppingCart className="w-4 h-4 text-primary-foreground" />
+            <div className="h-7 w-7 sm:h-8 sm:w-8 bg-primary rounded-lg flex items-center justify-center">
+              <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-foreground">Sellx</span>
+            <span className="font-semibold text-foreground text-sm sm:text-base">Sellx</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <OfflineIndicator />
           <NotificationCenter />
         </div>
@@ -427,7 +427,7 @@ export default function Layout({ children, currentPageName }) {
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-black/50 animate-fade-in" onClick={() => setMobileMenuOpen(false)}>
           <div
-            className="absolute left-0 top-14 bottom-0 w-72 nexo-sidebar overflow-y-auto animate-slide-in-left"
+            className="absolute left-0 top-12 sm:top-14 bottom-0 w-[280px] sm:w-72 nexo-sidebar overflow-y-auto animate-slide-in-left"
             onClick={e => e.stopPropagation()}
           >
             <nav className="py-3 space-y-0.5 px-2">
@@ -635,7 +635,7 @@ export default function Layout({ children, currentPageName }) {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto pt-14 lg:pt-0">
+        <main className="flex-1 overflow-auto pt-12 sm:pt-14 lg:pt-0 min-h-screen">
           <ErrorBoundary key={currentPageName}>
             {children}
           </ErrorBoundary>

@@ -40,9 +40,25 @@ export default function OperatorSelect() {
 
   const loadOperators = async () => {
     try {
+      // Primeiro, obter o organization_id do usuario logado
+      const { data: currentProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', user?.id)
+        .single();
+
+      if (profileError || !currentProfile?.organization_id) {
+        console.error('Erro ao obter organization_id:', profileError);
+        setOperators([]);
+        setLoading(false);
+        return;
+      }
+
+      // Buscar apenas operadores da mesma organizacao
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, email, role, employee_code, avatar_url, pin')
+        .eq('organization_id', currentProfile.organization_id)
         .eq('is_active', true)
         .order('full_name');
 

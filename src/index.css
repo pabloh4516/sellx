@@ -593,6 +593,24 @@
    Utility Classes
    ═══════════════════════════════════════════════════════════════════════════ */
 @layer utilities {
+  /* Safe Area Insets - Para iPhones com notch e bordas arredondadas */
+  .safe-area-inset {
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-inset-all {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
   /* Focus Ring */
   .nexo-focus {
     @apply focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2;

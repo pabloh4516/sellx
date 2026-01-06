@@ -88,11 +88,20 @@ export default function Register() {
       });
 
       if (authError) {
+        console.error('Auth error completo:', JSON.stringify(authError, null, 2));
+        console.error('Status:', authError.status);
+        console.error('Message:', authError.message);
+
         if (authError.message.includes('already registered')) {
           toast.error('Este email ja esta cadastrado');
+        } else if (authError.message.includes('Password should be')) {
+          toast.error('A senha deve ter pelo menos 6 caracteres');
+        } else if (authError.message.includes('Unable to validate')) {
+          toast.error('Email invalido. Verifique o formato do email.');
+        } else if (authError.message.includes('Signups not allowed')) {
+          toast.error('Cadastro de novos usuarios esta desabilitado no servidor');
         } else {
-          console.error('Auth error:', authError);
-          toast.error(authError.message);
+          toast.error(authError.message || 'Erro ao criar conta');
         }
         return;
       }
@@ -148,11 +157,27 @@ export default function Register() {
 
       // 4. Se criou organization, atualizar perfil e criar dados iniciais
       if (orgData) {
-        // Atualizar perfil com organization_id
-        await supabase
+        // Atualizar perfil com organization_id - CRITICO para isolamento de dados
+        const { error: orgIdError } = await supabase
           .from('profiles')
           .update({ organization_id: orgData.id })
           .eq('id', authData.user.id);
+
+        if (orgIdError) {
+          console.error('CRITICAL: Error setting organization_id:', orgIdError);
+          // Tentar novamente apos pequeno delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const { error: retryError } = await supabase
+            .from('profiles')
+            .update({ organization_id: orgData.id })
+            .eq('id', authData.user.id);
+
+          if (retryError) {
+            console.error('CRITICAL: Retry failed:', retryError);
+            // Mesmo com erro, continuar para mostrar tela de sucesso
+            // O usuario pode precisar contatar suporte
+          }
+        }
 
         // Criar configuracoes iniciais (ignorar erros)
         await supabase.from('theme_settings').insert({

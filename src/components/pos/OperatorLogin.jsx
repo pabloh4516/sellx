@@ -30,10 +30,24 @@ export default function OperatorLogin({ open, onOpenChange, onOperatorLogin }) {
 
   const loadUsers = async () => {
     try {
-      // Buscar usuarios do profiles com campo pin
+      // Primeiro, obter o organization_id do usuario autenticado
+      const { data: currentProfile, error: orgError } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', user?.id)
+        .single();
+
+      if (orgError || !currentProfile?.organization_id) {
+        console.error('Erro ao obter organization_id:', orgError);
+        setUsers([]);
+        return;
+      }
+
+      // Buscar usuarios do profiles com campo pin - APENAS da mesma organizacao
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select('id, full_name, email, role, pin, employee_code')
+        .eq('organization_id', currentProfile.organization_id)
         .eq('is_active', true)
         .in('role', [USER_ROLES.OWNER, USER_ROLES.ADMIN, USER_ROLES.MANAGER, USER_ROLES.SELLER, USER_ROLES.CASHIER])
         .order('full_name');

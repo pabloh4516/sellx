@@ -101,19 +101,19 @@ export function CardSection({
 }
 
 // ============================================================================
-// PAGE CONTAINER - Container principal da página
+// PAGE CONTAINER - Container principal da página (responsivo)
 // ============================================================================
 
 export function PageContainer({ children, className }) {
   return (
-    <div className={cn('p-6 space-y-6 nexo-scrollbar', className)}>
+    <div className={cn('p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 nexo-scrollbar', className)}>
       {children}
     </div>
   );
 }
 
 // ============================================================================
-// PAGE HEADER - Header da página
+// PAGE HEADER - Header da página (responsivo)
 // ============================================================================
 
 export function PageHeader({
@@ -125,12 +125,12 @@ export function PageHeader({
   className,
 }) {
   return (
-    <div className={cn('space-y-3', className)}>
-      {/* Breadcrumbs */}
+    <div className={cn('space-y-2 sm:space-y-3', className)}>
+      {/* Breadcrumbs - hidden on very small screens */}
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav className="flex items-center gap-1.5 text-sm">
+        <nav className="hidden sm:flex items-center gap-1.5 text-sm overflow-x-auto">
           {breadcrumbs.map((crumb, index) => (
-            <div key={index} className="flex items-center gap-1.5">
+            <div key={index} className="flex items-center gap-1.5 shrink-0">
               {index > 0 && <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
               <span className={cn(
                 index === breadcrumbs.length - 1
@@ -145,43 +145,47 @@ export function PageHeader({
       )}
 
       {/* Title row */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {Icon && (
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Icon className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           )}
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-            {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">{title}</h1>
+            {subtitle && <p className="text-xs sm:text-sm text-muted-foreground truncate">{subtitle}</p>}
           </div>
         </div>
 
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 // ============================================================================
-// GRID - Grid responsivo
+// GRID - Grid responsivo (otimizado para mobile)
 // ============================================================================
 
 export function Grid({ children, cols = 4, gap = 'md', className }) {
   const colsClass = {
     1: 'grid-cols-1',
-    2: 'grid-cols-1 sm:grid-cols-2',
-    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
-    5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
-    6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6',
+    2: 'grid-cols-1 xs:grid-cols-2',
+    3: 'grid-cols-1 xs:grid-cols-2 md:grid-cols-3',
+    4: 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+    5: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5',
+    6: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6',
   };
 
   const gapClass = {
-    sm: 'gap-3',
-    md: 'gap-4',
-    lg: 'gap-6',
+    sm: 'gap-2 sm:gap-3',
+    md: 'gap-2 sm:gap-3 md:gap-4',
+    lg: 'gap-3 sm:gap-4 md:gap-6',
   };
 
   return (

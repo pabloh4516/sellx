@@ -1,9 +1,10 @@
 import { cn } from '@/lib/utils';
 import { ChevronRight, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // ============================================================================
-// DATA TABLE - Tabela de dados moderna
+// DATA TABLE - Tabela de dados moderna com suporte mobile
 // ============================================================================
 
 export function DataTable({
@@ -14,11 +15,15 @@ export function DataTable({
   emptyMessage = 'Nenhum dado encontrado',
   loading = false,
   className,
+  mobileCardRender, // Funcao custom para renderizar card mobile
+  mobileColumns, // Array de keys para mostrar no mobile card (usa primeiras 3 por padrao)
 }) {
+  const isMobile = useIsMobile();
+
   if (loading) {
     return (
       <div className={cn('bg-card rounded-xl border border-border overflow-hidden', className)}>
-        <div className="p-8 text-center">
+        <div className="p-6 sm:p-8 text-center">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">Carregando...</p>
         </div>
@@ -29,7 +34,7 @@ export function DataTable({
   if (data.length === 0) {
     return (
       <div className={cn('bg-card rounded-xl border border-border overflow-hidden', className)}>
-        <div className="p-8 text-center">
+        <div className="p-6 sm:p-8 text-center">
           <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
             <Search className="w-5 h-5 text-muted-foreground" />
           </div>
@@ -39,6 +44,64 @@ export function DataTable({
     );
   }
 
+  // Mobile Card View
+  if (isMobile) {
+    const displayColumns = mobileColumns
+      ? columns.filter(c => mobileColumns.includes(c.key))
+      : columns.slice(0, 4); // Primeiras 4 colunas por padrao
+
+    return (
+      <div className={cn('space-y-2', className)}>
+        {data.map((item, index) => (
+          <div
+            key={keyExtractor(item)}
+            className={cn(
+              'bg-card rounded-xl border border-border p-3 sm:p-4 transition-colors',
+              onRowClick && 'cursor-pointer active:bg-muted/50'
+            )}
+            onClick={() => onRowClick?.(item)}
+          >
+            {mobileCardRender ? (
+              mobileCardRender(item, index)
+            ) : (
+              <div className="space-y-2">
+                {/* Primeira coluna como titulo principal */}
+                {displayColumns[0] && (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-medium text-foreground truncate flex-1">
+                      {displayColumns[0].render
+                        ? displayColumns[0].render(item[displayColumns[0].key], item, index)
+                        : item[displayColumns[0].key]}
+                    </div>
+                    {onRowClick && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                  </div>
+                )}
+                {/* Demais colunas em grid */}
+                {displayColumns.length > 1 && (
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {displayColumns.slice(1).map((column) => (
+                      <div key={column.key} className="min-w-0">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider truncate">
+                          {column.header || column.label}
+                        </p>
+                        <p className="text-sm text-foreground truncate">
+                          {column.render
+                            ? column.render(item[column.key], item, index)
+                            : item[column.key] || '-'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Desktop Table View
   return (
     <div className={cn('bg-card rounded-xl border border-border overflow-hidden', className)}>
       <div className="overflow-x-auto">
@@ -49,7 +112,7 @@ export function DataTable({
                 <th
                   key={column.key}
                   className={cn(
-                    'px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider',
+                    'px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap',
                     !column.align && !column.className?.includes('text-') && 'text-left',
                     column.align === 'center' && 'text-center',
                     column.align === 'right' && 'text-right',
@@ -77,7 +140,7 @@ export function DataTable({
                   <td
                     key={column.key}
                     className={cn(
-                      'px-4 py-3 text-sm',
+                      'px-3 sm:px-4 py-2.5 sm:py-3 text-sm',
                       !column.align && !column.className?.includes('text-') && 'text-left',
                       column.align === 'center' && 'text-center',
                       column.align === 'right' && 'text-right',
@@ -105,7 +168,7 @@ export function DataTable({
 }
 
 // ============================================================================
-// TABLE CARD - Tabela com header e ações
+// TABLE CARD - Tabela com header e ações (responsivo)
 // ============================================================================
 
 export function TableCard({
@@ -120,20 +183,20 @@ export function TableCard({
   return (
     <div className={cn('bg-card rounded-xl border border-border overflow-hidden', className)}>
       {/* Header */}
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h3 className="font-semibold text-foreground">{title}</h3>
-            {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+      <div className="p-3 sm:p-4 border-b border-border">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-foreground text-sm sm:text-base truncate">{title}</h3>
+            {subtitle && <p className="text-xs sm:text-sm text-muted-foreground truncate">{subtitle}</p>}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {onSearch && (
-              <div className="relative">
+              <div className="relative flex-1 sm:flex-none">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder={searchPlaceholder}
-                  className="pl-9 w-[200px] h-9"
+                  className="pl-9 w-full sm:w-[200px] h-9 text-sm"
                   onChange={(e) => onSearch(e.target.value)}
                 />
               </div>

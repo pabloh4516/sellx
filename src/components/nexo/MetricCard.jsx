@@ -60,27 +60,28 @@ export function MetricCard({
     },
   };
 
+  // Tamanhos responsivos - menores em mobile, maiores em desktop
   const sizes = {
     sm: {
-      padding: 'p-4',
-      iconSize: 'w-8 h-8',
-      iconInner: 'w-4 h-4',
-      labelSize: 'text-xs',
-      valueSize: 'text-xl',
+      padding: 'p-3 sm:p-4',
+      iconSize: 'w-7 h-7 sm:w-8 sm:h-8',
+      iconInner: 'w-3.5 h-3.5 sm:w-4 sm:h-4',
+      labelSize: 'text-[10px] sm:text-xs',
+      valueSize: 'text-lg sm:text-xl',
     },
     md: {
-      padding: 'p-5',
-      iconSize: 'w-10 h-10',
-      iconInner: 'w-5 h-5',
-      labelSize: 'text-sm',
-      valueSize: 'text-2xl',
+      padding: 'p-3 sm:p-4 md:p-5',
+      iconSize: 'w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10',
+      iconInner: 'w-4 h-4 sm:w-4.5 sm:h-4.5 md:w-5 md:h-5',
+      labelSize: 'text-[10px] sm:text-xs md:text-sm',
+      valueSize: 'text-lg sm:text-xl md:text-2xl',
     },
     lg: {
-      padding: 'p-6',
-      iconSize: 'w-12 h-12',
-      iconInner: 'w-6 h-6',
-      labelSize: 'text-sm',
-      valueSize: 'text-3xl',
+      padding: 'p-4 sm:p-5 md:p-6',
+      iconSize: 'w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12',
+      iconInner: 'w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6',
+      labelSize: 'text-xs sm:text-sm',
+      valueSize: 'text-xl sm:text-2xl md:text-3xl',
     },
   };
 
@@ -150,7 +151,7 @@ export function MetricCard({
 }
 
 // ============================================================================
-// HIGHLIGHT METRIC - Card de destaque com fundo colorido
+// HIGHLIGHT METRIC - Card de destaque com fundo colorido (responsivo)
 // ============================================================================
 
 export function HighlightMetric({
@@ -163,26 +164,26 @@ export function HighlightMetric({
 }) {
   return (
     <div className={cn(
-      'relative bg-primary text-primary-foreground rounded-xl p-6 overflow-hidden',
+      'relative bg-primary text-primary-foreground rounded-xl p-4 sm:p-5 md:p-6 overflow-hidden',
       'transition-all duration-200',
       className
     )}>
       {/* Background decoration */}
-      <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-      <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+      <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+      <div className="absolute bottom-0 left-0 w-16 h-16 sm:w-24 sm:h-24 bg-black/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
       {/* Content */}
       <div className="relative z-10">
-        <div className="flex items-start justify-between mb-4">
+        <div className="flex items-start justify-between mb-3 sm:mb-4">
           {Icon && (
-            <div className="w-11 h-11 rounded-lg bg-white/15 flex items-center justify-center">
-              <Icon className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-lg bg-white/15 flex items-center justify-center">
+              <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           )}
 
           {trend !== undefined && (
             <div className={cn(
-              'flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md',
+              'flex items-center gap-1 text-[10px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md',
               trend >= 0 ? 'bg-white/15' : 'bg-black/15'
             )}>
               {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -191,11 +192,11 @@ export function HighlightMetric({
           )}
         </div>
 
-        <p className="text-sm font-medium opacity-80 mb-1">{label}</p>
-        <p className="text-3xl font-bold tracking-tight">{value}</p>
+        <p className="text-xs sm:text-sm font-medium opacity-80 mb-1">{label}</p>
+        <p className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">{value}</p>
 
         {subtitle && (
-          <p className="text-sm opacity-60 mt-2">{subtitle}</p>
+          <p className="text-xs sm:text-sm opacity-60 mt-1 sm:mt-2">{subtitle}</p>
         )}
       </div>
     </div>
