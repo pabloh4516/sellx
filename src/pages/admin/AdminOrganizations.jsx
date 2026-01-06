@@ -1,0 +1,578 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Building2,
+  Search,
+  MoreHorizontal,
+  Eye,
+  Edit,
+  Ban,
+  CheckCircle,
+  Users,
+  Package,
+  Calendar,
+  Mail,
+  Phone,
+  MapPin,
+  RefreshCcw,
+  Download,
+  Filter,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/utils';
+
+export default function AdminOrganizations() {
+  const [loading, setLoading] = useState(true);
+  const [organizations, setOrganizations] = useState([]);
+  const [filteredOrgs, setFilteredOrgs] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [planFilter, setPlanFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedOrg, setSelectedOrg] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [plans, setPlans] = useState([]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    filterOrganizations();
+  }, [organizations, searchTerm, planFilter, statusFilter]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // Carregar organizacoes
+      const { data: orgsData, error: orgsError } = await supabase
+        .from('organizations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (orgsError) throw orgsError;
+
+      // Carregar planos
+      const { data: plansData } = await supabase
+        .from('plans')
+        .select('*');
+
+      // Carregar contagem de usuarios por organizacao
+      const orgsWithUsers = await Promise.all(
+        (orgsData || []).map(async (org) => {
+          const { count } = await supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', org.id);
+
+          return {
+            ...org,
+            users_count: count || 0,
+          };
+        })
+      );
+
+      setOrganizations(orgsWithUsers);
+      setPlans(plansData || []);
+    } catch (error) {
+      console.error('Error loading organizations:', error);
+      toast.error('Erro ao carregar organizacoes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterOrganizations = () => {
+    let filtered = [...organizations];
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (org) =>
+          org.name?.toLowerCase().includes(term) ||
+          org.email?.toLowerCase().includes(term) ||
+          org.cnpj?.includes(term)
+      );
+    }
+
+    if (planFilter !== 'all') {
+      filtered = filtered.filter((org) => org.plan === planFilter);
+    }
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((org) =>
+        statusFilter === 'active' ? org.is_active : !org.is_active
+      );
+    }
+
+    setFilteredOrgs(filtered);
+  };
+
+  const toggleOrgStatus = async (org) => {
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ is_active: !org.is_active })
+        .eq('id', org.id);
+
+      if (error) throw error;
+
+      toast.success(
+        org.is_active ? 'Organizacao desativada' : 'Organizacao ativada'
+      );
+      loadData();
+    } catch (error) {
+      console.error('Error toggling org status:', error);
+      toast.error('Erro ao alterar status');
+    }
+  };
+
+  const updateOrgPlan = async (orgId, newPlan) => {
+    try {
+      const plan = plans.find((p) => p.slug === newPlan);
+      const { error } = await supabase
+        .from('organizations')
+        .update({
+          plan: newPlan,
+          max_users: plan?.max_users || 1,
+          max_products: plan?.max_products || 100,
+        })
+        .eq('id', orgId);
+
+      if (error) throw error;
+
+      toast.success('Plano atualizado com sucesso');
+      loadData();
+      setDetailsOpen(false);
+    } catch (error) {
+      console.error('Error updating plan:', error);
+      toast.error('Erro ao atualizar plano');
+    }
+  };
+
+  const getPlanBadge = (plan) => {
+    const colors = {
+      free: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+      starter: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+      professional: 'bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300',
+      enterprise: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
+    };
+    const labels = {
+      free: 'Gratuito',
+      starter: 'Starter',
+      professional: 'Profissional',
+      enterprise: 'Enterprise',
+    };
+    return (
+      <Badge className={colors[plan] || colors.free}>
+        {labels[plan] || plan}
+      </Badge>
+    );
+  };
+
+  const exportToCSV = () => {
+    const headers = ['Nome', 'Email', 'CNPJ', 'Plano', 'Usuarios', 'Status', 'Criado em'];
+    const rows = filteredOrgs.map((org) => [
+      org.name,
+      org.email || '',
+      org.cnpj || '',
+      org.plan,
+      org.users_count,
+      org.is_active ? 'Ativo' : 'Inativo',
+      new Date(org.created_at).toLocaleDateString('pt-BR'),
+    ]);
+
+    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'organizacoes.csv';
+    a.click();
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Organizacoes</h1>
+          <p className="text-muted-foreground">
+            Gerencie todas as organizacoes da plataforma
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={exportToCSV}>
+            <Download className="w-4 h-4 mr-2" />
+            Exportar
+          </Button>
+          <Button onClick={loadData} disabled={loading}>
+            <RefreshCcw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nome, email ou CNPJ..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <Select value={planFilter} onValueChange={setPlanFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filtrar por plano" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os planos</SelectItem>
+                <SelectItem value="free">Gratuito</SelectItem>
+                <SelectItem value="starter">Starter</SelectItem>
+                <SelectItem value="professional">Profissional</SelectItem>
+                <SelectItem value="enterprise">Enterprise</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filtrar por status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="active">Ativos</SelectItem>
+                <SelectItem value="inactive">Inativos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{organizations.length}</p>
+                <p className="text-sm text-muted-foreground">Total</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-100 text-green-600">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  {organizations.filter((o) => o.is_active).length}
+                </p>
+                <p className="text-sm text-muted-foreground">Ativas</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-violet-100 text-violet-600">
+                <Package className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  {organizations.filter((o) => o.plan !== 'free').length}
+                </p>
+                <p className="text-sm text-muted-foreground">Pagantes</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  {organizations.reduce((sum, o) => sum + (o.users_count || 0), 0)}
+                </p>
+                <p className="text-sm text-muted-foreground">Usuarios</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Table */}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Organizacao</TableHead>
+                <TableHead>Plano</TableHead>
+                <TableHead>Usuarios</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Criado em</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <RefreshCcw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                    <p className="text-muted-foreground">Carregando...</p>
+                  </TableCell>
+                </TableRow>
+              ) : filteredOrgs.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <Building2 className="w-12 h-12 mx-auto mb-2 text-muted-foreground opacity-50" />
+                    <p className="text-muted-foreground">
+                      Nenhuma organizacao encontrada
+                    </p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredOrgs.map((org) => (
+                  <TableRow key={org.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <Building2 className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{org.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {org.email || 'Sem email'}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getPlanBadge(org.plan)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Users className="w-4 h-4 text-muted-foreground" />
+                        {org.users_count || 0}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {org.is_active ? (
+                        <Badge className="bg-green-100 text-green-700">Ativo</Badge>
+                      ) : (
+                        <Badge variant="secondary">Inativo</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(org.created_at).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setSelectedOrg(org);
+                              setDetailsOpen(true);
+                            }}
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            Ver detalhes
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => toggleOrgStatus(org)}>
+                            {org.is_active ? (
+                              <>
+                                <Ban className="w-4 h-4 mr-2" />
+                                Desativar
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Ativar
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Details Dialog */}
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Organizacao</DialogTitle>
+            <DialogDescription>
+              Informacoes completas e gerenciamento
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrg && (
+            <div className="space-y-6">
+              {/* Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground">Nome</Label>
+                  <p className="font-medium">{selectedOrg.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground">CNPJ</Label>
+                  <p className="font-medium">{selectedOrg.cnpj || '-'}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground">Email</Label>
+                  <p className="font-medium">{selectedOrg.email || '-'}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground">Telefone</Label>
+                  <p className="font-medium">{selectedOrg.phone || '-'}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground">Cidade/UF</Label>
+                  <p className="font-medium">
+                    {selectedOrg.city
+                      ? `${selectedOrg.city}/${selectedOrg.state}`
+                      : '-'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground">Criado em</Label>
+                  <p className="font-medium">
+                    {new Date(selectedOrg.created_at).toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Plan Management */}
+              <div className="p-4 rounded-lg border border-border space-y-4">
+                <h4 className="font-semibold">Gerenciar Plano</h4>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <Label>Plano Atual</Label>
+                    <Select
+                      value={selectedOrg.plan}
+                      onValueChange={(value) =>
+                        updateOrgPlan(selectedOrg.id, value)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {plans.map((plan) => (
+                          <SelectItem key={plan.slug} value={plan.slug}>
+                            {plan.name} - {formatCurrency(plan.price_monthly)}/mes
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Max Usuarios</Label>
+                    <p className="text-2xl font-bold">
+                      {selectedOrg.max_users === -1
+                        ? 'Ilimitado'
+                        : selectedOrg.max_users}
+                    </p>
+                  </div>
+                  <div>
+                    <Label>Max Produtos</Label>
+                    <p className="text-2xl font-bold">
+                      {selectedOrg.max_products === -1
+                        ? 'Ilimitado'
+                        : selectedOrg.max_products}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Usage Stats */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 rounded-lg bg-muted/50 text-center">
+                  <Users className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-2xl font-bold">{selectedOrg.users_count || 0}</p>
+                  <p className="text-sm text-muted-foreground">Usuarios</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50 text-center">
+                  <Package className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-2xl font-bold">-</p>
+                  <p className="text-sm text-muted-foreground">Produtos</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50 text-center">
+                  <Calendar className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-2xl font-bold">-</p>
+                  <p className="text-sm text-muted-foreground">Vendas/mes</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(cat:*)",
+      "Bash(powershell:*)",
+      "Bash(findstr:*)",
+      "Bash(find:*)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\")",
+      "Bash(dir \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\" /s)",
+      "Bash(git add:*)"
+    ]
+  }
+}

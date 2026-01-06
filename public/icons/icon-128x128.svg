@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#2d5a87"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background com cantos arredondados -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- Carrinho de compras -->
+  <g transform="translate(256, 240)" fill="none" stroke="white" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Corpo do carrinho -->
+    <path d="M-130 -50 L-105 -50 L-55 70 L105 70 L130 -10 L-35 -10"/>
+    <!-- Rodas -->
+    <circle cx="-35" cy="110" r="28" fill="white" stroke="none"/>
+    <circle cx="75" cy="110" r="28" fill="white" stroke="none"/>
+  </g>
+
+  <!-- Círculo verde com $ -->
+  <circle cx="340" cy="160" r="55" fill="#22c55e"/>
+  <text x="340" y="178" font-family="Arial,sans-serif" font-size="56" font-weight="bold" fill="white" text-anchor="middle">$</text>
+</svg>
