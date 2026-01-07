@@ -13,6 +13,7 @@ import { ROLE_LABELS, USER_ROLES } from '@/config/permissions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { safeFormatDate } from '@/lib/utils';
+import { loadSystemSettings, getCashRegisterMode } from '@/utils/settingsHelper';
 
 export default function PDVMain() {
   const { mode, setMode } = usePOSMode();
@@ -22,18 +23,14 @@ export default function PDVMain() {
   const [cashRegister, setCashRegister] = useState(null);
 
   // Carregar configuracao do modo de caixa
-  const cashRegisterMode = (() => {
-    const saved = localStorage.getItem('systemSettings');
-    if (saved) {
-      try {
-        const settings = JSON.parse(saved);
-        return settings.cashRegisterMode || 'shared';
-      } catch {
-        return 'shared';
-      }
-    }
-    return 'shared';
-  })();
+  const [cashRegisterMode, setCashRegisterMode] = useState(() => getCashRegisterMode());
+
+  // Carregar configuracoes do banco ao montar
+  useEffect(() => {
+    loadSystemSettings().then(settings => {
+      setCashRegisterMode(settings.cashRegisterMode || 'shared');
+    });
+  }, []);
 
   const isAdminOrManager = operator?.role && [USER_ROLES.OWNER, USER_ROLES.ADMIN, USER_ROLES.MANAGER].includes(operator.role);
   const canManageCash = cashRegisterMode === 'shared' ? isAdminOrManager : true;

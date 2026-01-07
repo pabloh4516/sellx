@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/contexts/AuthContext';
 import { USER_ROLES, ROLE_LABELS } from '@/config/permissions';
+import { invalidateSettingsCache } from '@/utils/settingsHelper';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,87 +43,80 @@ export default function Settings() {
     overdue: true,
     dailyReport: false
   });
-  const [systemSettings, setSystemSettings] = useState(() => {
-    // Carrega configuracoes salvas do localStorage
-    const saved = localStorage.getItem('systemSettings');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback para valores padrao
-      }
+  // Valores padrao das configuracoes
+  const defaultSettings = {
+    autoBackup: false,
+    blockSaleNoStock: true,
+    requireCustomer: false,
+    printAutomatically: false,
+    pdvWaitingMode: true,
+    // Configuracoes do Scanner
+    pdvSoundEnabled: true,
+    scannerPrefix: '',
+    scannerSuffix: '',
+    scannerMinLength: 3,
+    scannerTimeout: 100,
+    scannerEnterAsSubmit: true,
+    // Configuracoes do Caixa
+    cashRegisterMode: 'shared', // 'shared' ou 'per_operator'
+    // Configuracoes de Permissoes por Role
+    permissions: {
+      // Limites de desconto por role (em %)
+      discountLimits: {
+        owner: 100,     // Dono pode dar 100%
+        admin: 50,      // Admin pode dar ate 50%
+        manager: 30,    // Gerente pode dar ate 30%
+        seller: 10,     // Vendedor pode dar ate 10%
+        cashier: 5,     // Caixa pode dar ate 5%
+      },
+      // Permissoes por role
+      canEditSale: {
+        owner: true,
+        admin: true,
+        manager: true,
+        seller: false,
+        cashier: false,
+      },
+      canCancelSale: {
+        owner: true,
+        admin: true,
+        manager: true,
+        seller: false,
+        cashier: false,
+      },
+      canApplyDiscount: {
+        owner: true,
+        admin: true,
+        manager: true,
+        seller: true,
+        cashier: false,
+      },
+      canOpenPrice: {
+        owner: true,
+        admin: true,
+        manager: true,
+        seller: true,
+        cashier: true,
+      },
+      canViewCost: {
+        owner: true,
+        admin: true,
+        manager: true,
+        seller: false,
+        cashier: false,
+      },
+      canViewProfit: {
+        owner: true,
+        admin: true,
+        manager: true,
+        seller: false,
+        cashier: false,
+      },
     }
-    return {
-      autoBackup: false,
-      blockSaleNoStock: true,
-      requireCustomer: false,
-      printAutomatically: false,
-      pdvWaitingMode: true,
-      // Configuracoes do Scanner
-      pdvSoundEnabled: true,
-      scannerPrefix: '',
-      scannerSuffix: '',
-      scannerMinLength: 3,
-      scannerTimeout: 100,
-      scannerEnterAsSubmit: true,
-      // Configuracoes do Caixa
-      cashRegisterMode: 'shared', // 'shared' ou 'per_operator'
-      // Configuracoes de Permissoes por Role
-      permissions: {
-        // Limites de desconto por role (em %)
-        discountLimits: {
-          owner: 100,     // Dono pode dar 100%
-          admin: 50,      // Admin pode dar ate 50%
-          manager: 30,    // Gerente pode dar ate 30%
-          seller: 10,     // Vendedor pode dar ate 10%
-          cashier: 5,     // Caixa pode dar ate 5%
-        },
-        // Permissoes por role
-        canEditSale: {
-          owner: true,
-          admin: true,
-          manager: true,
-          seller: false,
-          cashier: false,
-        },
-        canCancelSale: {
-          owner: true,
-          admin: true,
-          manager: true,
-          seller: false,
-          cashier: false,
-        },
-        canApplyDiscount: {
-          owner: true,
-          admin: true,
-          manager: true,
-          seller: true,
-          cashier: false,
-        },
-        canOpenPrice: {
-          owner: true,
-          admin: true,
-          manager: true,
-          seller: true,
-          cashier: true,
-        },
-        canViewCost: {
-          owner: true,
-          admin: true,
-          manager: true,
-          seller: false,
-          cashier: false,
-        },
-        canViewProfit: {
-          owner: true,
-          admin: true,
-          manager: true,
-          seller: false,
-          cashier: false,
-        },
-      }
-    };
-  });
+  };
+
+  const [systemSettings, setSystemSettings] = useState(defaultSettings);
+  const [settingsId, setSettingsId] = useState(null); // ID do registro no banco
 
   useEffect(() => {
     loadData();
@@ -144,6 +138,52 @@ export default function Settings() {
       if (hasPermission) {
         const allUsers = await base44.entities.Profile.list();
         setUsers(allUsers);
+      }
+
+      // Carregar configuracoes do banco de dados
+      try {
+        const settingsList = await base44.entities.Setting.list();
+        // Busca o registro de configuracoes do sistema pela key
+        const systemSettingsRecord = settingsList.find(s => s.key === 'system_settings');
+
+        if (systemSettingsRecord) {
+          setSettingsId(systemSettingsRecord.id);
+          // Parse o valor JSON
+          let savedSettings = {};
+          try {
+            savedSettings = typeof systemSettingsRecord.value === 'string'
+              ? JSON.parse(systemSettingsRecord.value)
+              : systemSettingsRecord.value || {};
+          } catch {
+            savedSettings = {};
+          }
+
+          // Mescla as configuracoes do banco com os valores padrao
+          setSystemSettings(prev => ({
+            ...prev,
+            ...savedSettings,
+            permissions: {
+              ...prev.permissions,
+              ...(savedSettings.permissions || {})
+            }
+          }));
+          // Atualiza o localStorage como cache
+          localStorage.setItem('systemSettings', JSON.stringify({
+            ...defaultSettings,
+            ...savedSettings
+          }));
+        }
+      } catch (settingsError) {
+        console.warn('Configuracoes nao encontradas no banco, usando localStorage:', settingsError);
+        // Fallback para localStorage se nao conseguir carregar do banco
+        const saved = localStorage.getItem('systemSettings');
+        if (saved) {
+          try {
+            setSystemSettings(JSON.parse(saved));
+          } catch {
+            // usa valores padrao
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -200,19 +240,48 @@ export default function Settings() {
 
   const [saving, setSaving] = useState(false);
 
-  const handleSaveSettings = (customMessage = null) => {
+  const handleSaveSettings = async (customMessage = null) => {
     setSaving(true);
 
-    // Pequeno delay para dar feedback visual
-    setTimeout(() => {
+    try {
+      // Salvar no banco de dados usando estrutura key/value
+      const settingsData = {
+        key: 'system_settings',
+        value: JSON.stringify(systemSettings)
+      };
+
+      if (settingsId) {
+        // Atualiza registro existente
+        await base44.entities.Setting.update(settingsId, settingsData);
+      } else {
+        // Cria novo registro
+        const created = await base44.entities.Setting.create(settingsData);
+        setSettingsId(created.id);
+      }
+
+      // Atualiza localStorage como cache local
       localStorage.setItem('systemSettings', JSON.stringify(systemSettings));
       localStorage.setItem('notifications', JSON.stringify(notifications));
-      setSaving(false);
+
+      // Invalida o cache para forcar recarregamento em outros componentes
+      invalidateSettingsCache();
+
       toast.success(customMessage || 'Configuracoes salvas com sucesso!', {
-        description: 'As alteracoes foram aplicadas.',
+        description: 'As alteracoes foram aplicadas em todos os dispositivos.',
         duration: 3000,
       });
-    }, 300);
+    } catch (error) {
+      console.error('Erro ao salvar configuracoes:', error);
+      // Fallback: salva apenas no localStorage
+      localStorage.setItem('systemSettings', JSON.stringify(systemSettings));
+      localStorage.setItem('notifications', JSON.stringify(notifications));
+      toast.warning('Configuracoes salvas localmente', {
+        description: 'Nao foi possivel sincronizar com o servidor.',
+        duration: 3000,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSaveCashMode = () => {

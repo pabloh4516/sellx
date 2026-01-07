@@ -18,6 +18,7 @@ import A4ReceiptPrint from '../components/pos/A4ReceiptPrint';
 import QuickCustomerForm from '../components/pos/QuickCustomerForm';
 import { cn } from '@/lib/utils';
 import { playSound } from '@/utils/beep';
+import { loadSystemSettings, getDefaultSettings } from '@/utils/settingsHelper';
 import { UserPlus } from 'lucide-react';
 import {
   PageContainer,
@@ -38,17 +39,21 @@ const CANCELLATION_REASONS = [
 
 export default function PDVQuick({ onModeChange, currentMode, operator }) {
   // Carregar configuracoes do sistema
-  const systemSettings = (() => {
+  const [systemSettings, setSystemSettings] = useState(() => {
+    // Valor inicial do cache/localStorage
     const saved = localStorage.getItem('systemSettings');
     if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return {};
-      }
+      try { return JSON.parse(saved); } catch { return getDefaultSettings(); }
     }
-    return {};
-  })();
+    return getDefaultSettings();
+  });
+
+  // Carregar configuracoes do banco ao montar
+  useEffect(() => {
+    loadSystemSettings().then(settings => {
+      setSystemSettings(settings);
+    });
+  }, []);
 
   const cashRegisterMode = systemSettings.cashRegisterMode || 'shared';
   const blockSaleNoStock = systemSettings.blockSaleNoStock ?? true; // Default true para bloquear

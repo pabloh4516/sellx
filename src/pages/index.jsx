@@ -42,6 +42,7 @@ const BankAccounts = lazy(() => import("./BankAccounts"));
 const Birthdays = lazy(() => import("./Birthdays"));
 const CashFlow = lazy(() => import("./CashFlow"));
 const CashRegister = lazy(() => import("./CashRegister"));
+const CashAnalysis = lazy(() => import("./CashAnalysis"));
 const Checks = lazy(() => import("./Checks"));
 const CompanySettings = lazy(() => import("./CompanySettings"));
 const Customers = lazy(() => import("./Customers"));
@@ -98,6 +99,7 @@ const PAGES = {
   Birthdays,
   CashFlow,
   CashRegister,
+  CashAnalysis,
   Checks,
   CompanySettings,
   Customers,
@@ -263,6 +265,7 @@ function AppContent() {
         <Route path="/Birthdays" element={<Birthdays />} />
         <Route path="/CashFlow" element={<CashFlow />} />
         <Route path="/CashRegister" element={<CashRegister />} />
+        <Route path="/CashAnalysis" element={<CashAnalysis />} />
         <Route path="/Checks" element={<Checks />} />
         <Route path="/CompanySettings" element={<CompanySettings />} />
         <Route path="/Customers" element={<Customers />} />

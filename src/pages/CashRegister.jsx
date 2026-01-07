@@ -22,6 +22,7 @@ import { USER_ROLES } from '@/config/permissions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { safeFormatDate } from '@/lib/utils';
+import { loadSystemSettings, getCashRegisterMode } from '@/utils/settingsHelper';
 import {
   PageContainer,
   PageHeader,
@@ -36,21 +37,21 @@ export default function CashRegister() {
   const currentUser = operator || user;
 
   // Carregar configuracao do modo de caixa
-  const [cashRegisterMode, setCashRegisterMode] = useState(() => {
-    const saved = localStorage.getItem('systemSettings');
-    if (saved) {
-      try {
-        const settings = JSON.parse(saved);
-        return settings.cashRegisterMode || 'shared';
-      } catch {
-        return 'shared';
-      }
-    }
-    return 'shared';
-  });
+  const [cashRegisterMode, setCashRegisterMode] = useState(() => getCashRegisterMode());
+
+  // Carregar configuracoes do banco ao montar
+  useEffect(() => {
+    loadSystemSettings().then(settings => {
+      setCashRegisterMode(settings.cashRegisterMode || 'shared');
+    });
+  }, []);
 
   // Verificar se usuario pode gerenciar caixa baseado no modo
   const isAdminOrManager = currentUser?.role && [USER_ROLES.OWNER, USER_ROLES.ADMIN, USER_ROLES.MANAGER].includes(currentUser.role);
+
+  // Modo compartilhado: só admin/gerente pode ABRIR
+  // Modo por operador: cada um gerencia o seu
+  const canOpenCash = cashRegisterMode === 'shared' ? isAdminOrManager : true;
   const canManageCash = cashRegisterMode === 'shared' ? isAdminOrManager : true;
 
   const [cashRegister, setCashRegister] = useState(null);
@@ -73,6 +74,10 @@ export default function CashRegister() {
     m100: 0, m50: 0, m25: 0, m10: 0, m05: 0, m01: 0
   });
   const printRef = useRef(null);
+
+  // Verificar se pode fechar ESTE caixa especifico
+  // Admin pode fechar qualquer caixa, ou quem abriu pode fechar o seu
+  const canCloseThisCash = isAdminOrManager || (cashRegister && cashRegister.opened_by_id === currentUser?.id);
 
   useEffect(() => {
     loadData();
@@ -584,13 +589,13 @@ export default function CashRegister() {
             <p className="text-muted-foreground mb-8">
               {cashRegisterMode === 'per_operator'
                 ? 'Abra seu caixa para comecar a vender'
-                : canManageCash
+                : canOpenCash
                   ? 'Abra o caixa para comecar as operacoes do dia'
                   : 'Aguarde o administrador ou gerente abrir o caixa'
               }
             </p>
 
-            {canManageCash ? (
+            {canOpenCash ? (
               <Button
                 onClick={() => setShowOpenDialog(true)}
                 className="w-full h-12 text-base"
@@ -767,7 +772,7 @@ export default function CashRegister() {
               <ArrowDownCircle className="w-4 h-4 mr-2 text-destructive" />
               Sangria
             </Button>
-            {canManageCash && (
+            {canCloseThisCash && (
               <Button
                 variant="destructive"
                 onClick={() => {

@@ -163,6 +163,7 @@ const menuItems = [
     icon: Wallet,
     submenu: [
       { name: 'Caixa', icon: DollarSign, page: 'CashRegister' },
+      { name: 'Análise de Caixa', icon: BarChart3, page: 'CashAnalysis' },
       { name: 'Fluxo de Caixa', icon: TrendingUp, page: 'CashFlow' },
       { name: 'Contas a Pagar', icon: FileText, page: 'Payables' },
       { name: 'Contas a Receber', icon: Receipt, page: 'Receivables' },

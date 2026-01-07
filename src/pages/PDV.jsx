@@ -31,6 +31,7 @@ import { Award, Clock as ClockIcon, Tag } from 'lucide-react';
 import { PDVModeToggle } from '@/components/pdv/PDVModeToggle';
 import { cn } from '@/lib/utils';
 import { playSound } from '@/utils/beep';
+import { loadSystemSettings, getCashRegisterMode, getDefaultSettings } from '@/utils/settingsHelper';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,17 +55,21 @@ const CANCELLATION_REASONS = [
 
 export default function PDV({ onModeChange, currentMode, operator }) {
   // Carregar configuracoes do sistema
-  const systemSettings = (() => {
+  const [systemSettings, setSystemSettings] = useState(() => {
+    // Valor inicial do cache/localStorage
     const saved = localStorage.getItem('systemSettings');
     if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return {};
-      }
+      try { return JSON.parse(saved); } catch { return getDefaultSettings(); }
     }
-    return {};
-  })();
+    return getDefaultSettings();
+  });
+
+  // Carregar configuracoes do banco ao montar
+  useEffect(() => {
+    loadSystemSettings().then(settings => {
+      setSystemSettings(settings);
+    });
+  }, []);
 
   const cashRegisterMode = systemSettings.cashRegisterMode || 'shared';
   const blockSaleNoStock = systemSettings.blockSaleNoStock ?? true; // Default true para bloquear

@@ -8,6 +8,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useAuth } from './AuthContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { getCashRegisterMode, loadSystemSettings } from '@/utils/settingsHelper';
 
 const OperatorContext = createContext(null);
 
@@ -312,8 +313,11 @@ export function OperatorProvider({ children }) {
   const logoutOperator = useCallback(async (force = false) => {
     if (!operator) return true;
 
-    // Verificar se tem caixa aberto
-    if (!force) {
+    // Verificar se tem caixa aberto APENAS no modo per_operator
+    // No modo compartilhado, permite trocar operador mesmo com caixa aberto
+    const cashRegisterMode = getCashRegisterMode();
+
+    if (!force && cashRegisterMode === 'per_operator') {
       const cashRegister = await checkOpenCashRegister(operator.id);
 
       if (cashRegister) {
@@ -351,14 +355,18 @@ export function OperatorProvider({ children }) {
   // Abrir seletor de operador manualmente
   const openOperatorSelect = useCallback(async () => {
     if (operator) {
-      // Verificar caixa antes de abrir seletor
-      const cashRegister = await checkOpenCashRegister(operator.id);
+      // Verificar caixa antes de abrir seletor APENAS no modo per_operator
+      const cashRegisterMode = getCashRegisterMode();
 
-      if (cashRegister) {
-        setOpenCashRegister(cashRegister);
-        setShowCashWarning(true);
-        setPendingAction('switch');
-        return;
+      if (cashRegisterMode === 'per_operator') {
+        const cashRegister = await checkOpenCashRegister(operator.id);
+
+        if (cashRegister) {
+          setOpenCashRegister(cashRegister);
+          setShowCashWarning(true);
+          setPendingAction('switch');
+          return;
+        }
       }
     }
 
