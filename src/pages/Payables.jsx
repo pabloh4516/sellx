@@ -42,7 +42,7 @@ export default function Payables() {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('pendente');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [showPayDialog, setShowPayDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState(null);
@@ -53,8 +53,8 @@ export default function Payables() {
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
-    due_date: '',
-    category: '',
+    due_date: new Date().toISOString().split('T')[0],
+    category: 'outros',
     supplier_id: '',
     notes: '',
     recurrence: 'none', // none, monthly, weekly
@@ -66,11 +66,14 @@ export default function Payables() {
 
   const loadData = async () => {
     try {
+      console.log('[Payables] Carregando dados...');
       const [expensesData, methodsData, suppliersData] = await Promise.all([
         base44.entities.Expense.list('-due_date'),
         base44.entities.PaymentMethod.list(),
         base44.entities.Supplier.list()
       ]);
+
+      console.log('[Payables] Despesas carregadas:', expensesData?.length || 0, expensesData);
 
       const updatedExpenses = expensesData.map(exp => {
         if (exp.status === 'pendente' && exp.due_date && isPast(new Date(exp.due_date))) {
@@ -94,8 +97,8 @@ export default function Payables() {
     setFormData({
       description: '',
       amount: '',
-      due_date: '',
-      category: '',
+      due_date: new Date().toISOString().split('T')[0],
+      category: 'outros',
       supplier_id: '',
       notes: '',
       recurrence: 'none',
@@ -120,20 +123,25 @@ export default function Payables() {
         status: 'pendente',
       };
 
+      console.log('[Payables] Salvando conta:', data);
+
       if (selectedExpense) {
-        await base44.entities.Expense.update(selectedExpense.id, data);
+        const result = await base44.entities.Expense.update(selectedExpense.id, data);
+        console.log('[Payables] Conta atualizada:', result);
         toast.success('Conta atualizada com sucesso!');
       } else {
-        await base44.entities.Expense.create(data);
+        const result = await base44.entities.Expense.create(data);
+        console.log('[Payables] Conta criada:', result);
         toast.success('Conta cadastrada com sucesso!');
       }
 
       setShowCreateDialog(false);
       resetForm();
-      loadData();
+      await loadData();
+      console.log('[Payables] Dados recarregados');
     } catch (error) {
       console.error('Error saving expense:', error);
-      toast.error('Erro ao salvar conta');
+      toast.error(`Erro ao salvar conta: ${error.message || 'Erro desconhecido'}`);
     }
   };
 
@@ -171,11 +179,23 @@ export default function Payables() {
     }
 
     try {
-      await base44.entities.Expense.update(selectedExpense.id, {
+      // Dados base para atualização
+      const updateData = {
         status: 'pago',
         paid_date: paymentData.paid_date,
-        payment_method_id: paymentData.payment_method_id
-      });
+      };
+
+      // Tentar com payment_method_id (coluna opcional)
+      try {
+        await base44.entities.Expense.update(selectedExpense.id, {
+          ...updateData,
+          payment_method_id: paymentData.payment_method_id
+        });
+      } catch (e) {
+        // Se falhar, tenta sem payment_method_id
+        console.warn('Tentando sem payment_method_id:', e.message);
+        await base44.entities.Expense.update(selectedExpense.id, updateData);
+      }
 
       toast.success('Pagamento registrado');
       setShowPayDialog(false);
@@ -183,7 +203,7 @@ export default function Payables() {
       loadData();
     } catch (error) {
       console.error('Error paying expense:', error);
-      toast.error('Erro ao registrar pagamento');
+      toast.error(`Erro ao registrar pagamento: ${error.message || 'Erro desconhecido'}`);
     }
   };
 
@@ -194,8 +214,14 @@ export default function Payables() {
     }).format(value || 0);
   };
 
+  const getSupplierName = (id) => suppliers.find(s => s.id === id)?.name || '';
+
   const filteredExpenses = expenses.filter(expense => {
-    const matchSearch = expense.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const description = (expense.description || '').toLowerCase();
+    const category = (expense.category || '').toLowerCase();
+    const supplierName = getSupplierName(expense.supplier_id).toLowerCase();
+    const search = searchTerm.toLowerCase();
+    const matchSearch = description.includes(search) || category.includes(search) || supplierName.includes(search);
     const matchStatus = statusFilter === 'all' || expense.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -221,13 +247,21 @@ export default function Payables() {
     return statusMap[status] || { status: 'default', label: status };
   };
 
+  const getCategoryLabel = (value) => {
+    const cat = EXPENSE_CATEGORIES.find(c => c.value === value);
+    return cat?.label || value || '-';
+  };
+
   const columns = [
     {
       key: 'description',
-      label: 'Descricao',
+      label: 'Descrição',
       render: (_, expense) => (
         <div>
           <p className="font-medium">{expense.description}</p>
+          {expense.supplier_id && (
+            <p className="text-xs text-muted-foreground">Fornecedor: {getSupplierName(expense.supplier_id)}</p>
+          )}
           {expense.notes && (
             <p className="text-xs text-muted-foreground truncate max-w-xs">{expense.notes}</p>
           )}
@@ -238,7 +272,7 @@ export default function Payables() {
       key: 'category',
       label: 'Categoria',
       render: (_, expense) => (
-        <span className="capitalize">{expense.category?.replace(/_/g, ' ') || '-'}</span>
+        <span className="capitalize text-sm">{getCategoryLabel(expense.category)}</span>
       )
     },
     {
@@ -371,7 +405,7 @@ export default function Payables() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar contas..."
+              placeholder="Buscar por descrição, categoria ou fornecedor..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -509,12 +543,12 @@ export default function Payables() {
               </div>
               <div>
                 <Label>Fornecedor</Label>
-                <Select value={formData.supplier_id} onValueChange={(v) => setFormData({ ...formData, supplier_id: v })}>
+                <Select value={formData.supplier_id || '_none'} onValueChange={(v) => setFormData({ ...formData, supplier_id: v === '_none' ? '' : v })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="_none">Nenhum</SelectItem>
                     {suppliers.map(sup => (
                       <SelectItem key={sup.id} value={sup.id}>{sup.name}</SelectItem>
                     ))}

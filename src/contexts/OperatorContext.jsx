@@ -122,20 +122,106 @@ export function OperatorProvider({ children }) {
     if (!operatorId) return null;
 
     try {
-      const { data, error } = await supabase
+      // Buscar caixa aberto
+      const { data: cashRegister, error } = await supabase
         .from('cash_registers')
         .select('*')
-        .eq('user_id', operatorId)
-        .eq('status', 'open')
-        .order('opened_at', { ascending: false })
+        .eq('opened_by_id', operatorId)
+        .eq('status', 'aberto')
+        .order('opening_date', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         console.error('Erro ao verificar caixa:', error);
       }
 
-      return data || null;
+      if (!cashRegister) return null;
+
+      // Buscar vendas do caixa para calcular totais (incluindo payments para vendas em dinheiro)
+      const { data: sales } = await supabase
+        .from('sales')
+        .select('total, payment_method, payments')
+        .eq('cash_register_id', cashRegister.id)
+        .eq('status', 'concluida');
+
+      // Buscar movimentações (sangrias/suprimentos)
+      const { data: movements } = await supabase
+        .from('cash_movements')
+        .select('amount, type')
+        .eq('cash_register_id', cashRegister.id);
+
+      // Helper para parsear payments
+      const parsePayments = (sale) => {
+        if (!sale.payments) return [];
+        let payments = sale.payments;
+        if (typeof payments === 'string') {
+          try { payments = JSON.parse(payments); } catch { return []; }
+        }
+        return Array.isArray(payments) ? payments : [];
+      };
+
+      // Verificar se pagamento é em dinheiro (pelo method_name que é salvo diretamente)
+      const isCashPayment = (payment) => {
+        const methodName = (payment.method_name || '').toLowerCase();
+        return methodName === 'dinheiro' || methodName.includes('dinheiro');
+      };
+
+      // Calcular totais
+      const totalSales = (sales || []).reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
+
+      // Calcular vendas em dinheiro (descontando troco)
+      // Se cliente pagou R$100 para venda de R$76, fica R$76 no caixa (R$24 voltou como troco)
+      let cashSales = 0;
+
+      (sales || []).forEach((sale) => {
+        const payments = parsePayments(sale);
+        const saleTotal = parseFloat(sale.total) || 0;
+
+        if (payments.length > 0) {
+          // Calcular total pago e total em dinheiro
+          let totalPaid = 0;
+          let cashPaid = 0;
+
+          payments.forEach(payment => {
+            const amount = parseFloat(payment.amount) || 0;
+            totalPaid += amount;
+            if (isCashPayment(payment)) {
+              cashPaid += amount;
+            }
+          });
+
+          // O troco vem do dinheiro
+          const change = Math.max(0, totalPaid - saleTotal);
+          // Dinheiro que fica no caixa = dinheiro pago - troco
+          const cashInRegister = Math.max(0, cashPaid - change);
+
+          cashSales += cashInRegister;
+        } else if (sale.payment_method) {
+          const pm = (sale.payment_method || '').toLowerCase();
+          const isCash = pm === 'cash' || pm === 'dinheiro' || pm.includes('dinheiro');
+          if (isCash) {
+            // No formato antigo, usamos o total da venda (já sem troco)
+            cashSales += saleTotal;
+          }
+        }
+      });
+
+      const totalWithdrawals = (movements || [])
+        .filter(m => m.type === 'sangria' || m.type === 'withdrawal')
+        .reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
+      const totalDeposits = (movements || [])
+        .filter(m => m.type === 'suprimento' || m.type === 'deposit')
+        .reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
+
+      return {
+        ...cashRegister,
+        total_sales: totalSales,
+        cash_sales: cashSales,
+        total_withdrawals: totalWithdrawals,
+        total_deposits: totalDeposits,
+        sales_count: (sales || []).length
+      };
     } catch (e) {
       console.error('Erro ao verificar caixa:', e);
       return null;
@@ -248,27 +334,13 @@ export function OperatorProvider({ children }) {
     return true;
   }, [operator, checkOpenCashRegister, setAuthOperator]);
 
-  // Confirmar troca mesmo com caixa aberto (transferir)
-  const confirmLogoutWithOpenCash = useCallback(async (action = 'transfer') => {
-    if (action === 'close') {
-      // Redirecionar para fechar caixa
-      setShowCashWarning(false);
-      // O componente que chamar isso deve redirecionar para /caixa
-      return { action: 'close_cash', cashRegister: openCashRegister };
-    }
-
-    // Transferir caixa - apenas sair sem fechar
-    setOperator(null);
-    setAuthOperator(null); // Sincronizar com AuthContext
-    sessionStorage.removeItem(OPERATOR_KEY);
-    setShowOperatorSelect(true);
+  // Confirmar fechamento do caixa antes de trocar
+  const confirmLogoutWithOpenCash = useCallback(async (action = 'close') => {
+    // Sempre redirecionar para fechar caixa - não permite transferir
     setShowCashWarning(false);
-    setOpenCashRegister(null);
-    setPendingAction(null);
-
-    toast.info('Caixa mantido aberto para o proximo operador');
-    return { action: 'transferred' };
-  }, [openCashRegister, setAuthOperator]);
+    // O componente que chamar isso deve redirecionar para /caixa
+    return { action: 'close_cash', cashRegister: openCashRegister };
+  }, [openCashRegister]);
 
   // Cancelar troca
   const cancelLogout = useCallback(() => {

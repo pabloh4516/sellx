@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,9 +12,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import {
   Plus, Search, Edit, Trash2, User, Phone, Mail,
-  History, MoreVertical, Users, Star, Crown, Percent
+  History, MoreVertical, Users, Star, Crown, Percent,
+  AlertTriangle, Clock, TrendingUp, ShoppingBag, Ban
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, differenceInDays, subDays } from 'date-fns';
 import { ExportMenu } from '@/components/ui/export-menu';
 import { useSafeLoading } from '@/components/ui/safe-loading';
 import {
@@ -40,6 +41,7 @@ export default function Customers() {
   const [installments, setInstallments] = useState([]);
   const [loading, setLoading, isTimeout] = useSafeLoading(true, 20000); // 20s timeout
   const [searchTerm, setSearchTerm] = useState('');
+  const [segmentFilter, setSegmentFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -73,8 +75,8 @@ export default function Customers() {
     try {
       const [customersData, salesData, installmentsData] = await Promise.all([
         base44.entities.Customer.list('-created_at'),
-        base44.entities.Sale.list(),
-        base44.entities.Installment.list()
+        base44.entities.Sale.list('-sale_date', { limit: 500 }),
+        base44.entities.Installment.filter({ status: 'pendente' }, { limit: 200 })
       ]);
       setCustomers(customersData);
       setSales(salesData);
@@ -222,40 +224,141 @@ export default function Customers() {
     return getCustomerInstallments(customerId).filter(i => i.status === 'pendente' || i.status === 'atrasado');
   };
 
-  const filteredCustomers = customers.filter(customer =>
+  const getOverdueInstallments = (customerId) => {
+    return getCustomerInstallments(customerId).filter(i => i.status === 'atrasado');
+  };
+
+  // Calcula metricas de cada cliente
+  const customerMetrics = useMemo(() => {
+    const metrics = {};
+    const today = new Date();
+    const inactiveDays = 90; // Cliente inativo apos 90 dias sem compra
+
+    customers.forEach(customer => {
+      const customerSales = getCustomerSales(customer.id);
+      const pendingInst = getPendingInstallments(customer.id);
+      const overdueInst = getOverdueInstallments(customer.id);
+
+      // Ultima compra
+      const lastSale = customerSales.length > 0
+        ? customerSales.sort((a, b) => new Date(b.sale_date || b.created_date) - new Date(a.sale_date || a.created_date))[0]
+        : null;
+
+      const lastPurchaseDate = lastSale ? new Date(lastSale.sale_date || lastSale.created_date) : null;
+      const daysSinceLastPurchase = lastPurchaseDate ? differenceInDays(today, lastPurchaseDate) : null;
+
+      // Total gasto
+      const totalSpent = customerSales.reduce((sum, s) => sum + (s.total || 0), 0);
+
+      // Total em atraso
+      const totalOverdue = overdueInst.reduce((sum, i) => sum + (i.amount || 0), 0);
+
+      metrics[customer.id] = {
+        totalPurchases: customerSales.length,
+        totalSpent,
+        lastPurchaseDate,
+        daysSinceLastPurchase,
+        pendingCount: pendingInst.length,
+        overdueCount: overdueInst.length,
+        totalOverdue,
+        isInactive: daysSinceLastPurchase === null || daysSinceLastPurchase > inactiveDays,
+        isOverdue: overdueInst.length > 0
+      };
+    });
+
+    return metrics;
+  }, [customers, sales, installments]);
+
+  // Contagem por segmento
+  const segmentCounts = useMemo(() => {
+    let vip = 0, overdue = 0, inactive = 0, blocked = 0, active = 0;
+
+    customers.forEach(c => {
+      const m = customerMetrics[c.id] || {};
+      if (c.is_blocked) blocked++;
+      else if (c.is_vip) vip++;
+      else if (m.isOverdue) overdue++;
+      else if (m.isInactive) inactive++;
+      else active++;
+    });
+
+    return { all: customers.length, vip, overdue, inactive, blocked, active };
+  }, [customers, customerMetrics]);
+
+  // Filtro por segmento
+  const getSegmentedCustomers = useCallback((customerList) => {
+    if (segmentFilter === 'all') return customerList;
+
+    return customerList.filter(customer => {
+      const m = customerMetrics[customer.id] || {};
+
+      switch (segmentFilter) {
+        case 'vip':
+          return customer.is_vip && !customer.is_blocked;
+        case 'overdue':
+          return m.isOverdue && !customer.is_blocked;
+        case 'inactive':
+          return m.isInactive && !customer.is_vip && !m.isOverdue && !customer.is_blocked;
+        case 'blocked':
+          return customer.is_blocked;
+        case 'active':
+          return !customer.is_blocked && !customer.is_vip && !m.isOverdue && !m.isInactive;
+        default:
+          return true;
+      }
+    });
+  }, [segmentFilter, customerMetrics]);
+
+  const filteredCustomers = getSegmentedCustomers(customers.filter(customer =>
     customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.cpf_cnpj?.includes(searchTerm) ||
     customer.phone?.includes(searchTerm) ||
     customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ));
 
   const columns = [
     {
       key: 'customer',
       header: 'Cliente',
-      render: (_, item) => (
-        <div className="flex items-center gap-2">
-          <TableAvatar
-            name={item.name}
-            subtitle={item.city ? `${item.city}/${item.state}` : item.cpf_cnpj || 'Sem endereco'}
-            image={item.photo_url}
-          />
-          {item.is_vip && (
-            <div className="flex items-center gap-1 px-2 py-0.5 bg-warning/10 text-warning rounded-full text-xs font-medium">
-              <Crown className="w-3 h-3" />
-              VIP
-              {item.vip_discount_percent > 0 && ` ${item.vip_discount_percent}%`}
+      render: (_, item) => {
+        const m = customerMetrics[item.id] || {};
+        return (
+          <div className="flex items-center gap-2">
+            <TableAvatar
+              name={item.name}
+              subtitle={item.city ? `${item.city}/${item.state}` : item.cpf_cnpj || 'Sem endereco'}
+              image={item.photo_url}
+            />
+            <div className="flex flex-wrap gap-1">
+              {item.is_vip && (
+                <div className="flex items-center gap-1 px-2 py-0.5 bg-warning/10 text-warning rounded-full text-xs font-medium">
+                  <Crown className="w-3 h-3" />
+                  VIP
+                  {item.vip_discount_percent > 0 && ` ${item.vip_discount_percent}%`}
+                </div>
+              )}
+              {item.is_blocked && (
+                <div className="flex items-center gap-1 px-2 py-0.5 bg-destructive/10 text-destructive rounded-full text-xs font-medium">
+                  <Ban className="w-3 h-3" />
+                  Bloqueado
+                </div>
+              )}
+              {m.isOverdue && !item.is_blocked && (
+                <div className="flex items-center gap-1 px-2 py-0.5 bg-destructive/10 text-destructive rounded-full text-xs font-medium">
+                  <AlertTriangle className="w-3 h-3" />
+                  Inadimplente
+                </div>
+              )}
+              {m.isInactive && !item.is_vip && !m.isOverdue && !item.is_blocked && (
+                <div className="flex items-center gap-1 px-2 py-0.5 bg-muted text-muted-foreground rounded-full text-xs font-medium">
+                  <Clock className="w-3 h-3" />
+                  Inativo
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'cpf_cnpj',
-      header: 'CPF/CNPJ',
-      render: (_, item) => (
-        <span className="font-mono text-sm text-muted-foreground">{item.cpf_cnpj || '-'}</span>
-      )
+          </div>
+        );
+      }
     },
     {
       key: 'contact',
@@ -269,7 +372,7 @@ export default function Customers() {
             </p>
           )}
           {item.email && (
-            <p className="flex items-center gap-1.5 text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-muted-foreground truncate max-w-[180px]">
               <Mail className="w-3 h-3" />
               {item.email}
             </p>
@@ -278,34 +381,65 @@ export default function Customers() {
       )
     },
     {
-      key: 'credit_limit',
-      header: 'Limite',
-      align: 'right',
-      render: (_, item) => <Currency value={item.credit_limit} />
-    },
-    {
-      key: 'available',
-      header: 'Disponivel',
+      key: 'purchases',
+      header: 'Compras',
       align: 'right',
       render: (_, item) => {
-        const available = (item.credit_limit || 0) - (item.used_credit || 0);
-        return <Currency value={available} showSign />
+        const m = customerMetrics[item.id] || {};
+        return (
+          <div className="text-right">
+            <div className="font-medium">
+              <Currency value={m.totalSpent || 0} />
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {m.totalPurchases || 0} {m.totalPurchases === 1 ? 'compra' : 'compras'}
+            </div>
+          </div>
+        );
       }
     },
     {
-      key: 'status',
-      header: 'Status',
-      align: 'center',
-      width: '120px',
+      key: 'last_purchase',
+      header: 'Ultima Compra',
       render: (_, item) => {
-        const pendingCount = getPendingInstallments(item.id).length;
-        if (item.is_blocked) {
-          return <StatusBadge status="danger" label="Bloqueado" />;
+        const m = customerMetrics[item.id] || {};
+        if (!m.lastPurchaseDate) {
+          return <span className="text-muted-foreground text-sm">Nunca comprou</span>;
         }
-        if (pendingCount > 0) {
-          return <StatusBadge status="warning" label={`${pendingCount} pendente${pendingCount > 1 ? 's' : ''}`} />;
-        }
-        return <StatusBadge status="success" label="Ativo" />;
+        return (
+          <div className="text-sm">
+            <div>{safeFormatDate(m.lastPurchaseDate, 'dd/MM/yyyy')}</div>
+            <div className={`text-xs ${m.daysSinceLastPurchase > 90 ? 'text-destructive' : m.daysSinceLastPurchase > 30 ? 'text-warning' : 'text-muted-foreground'}`}>
+              {m.daysSinceLastPurchase === 0 ? 'Hoje' : m.daysSinceLastPurchase === 1 ? 'Ontem' : `${m.daysSinceLastPurchase} dias atras`}
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      key: 'credit',
+      header: 'Credito',
+      align: 'right',
+      render: (_, item) => {
+        const m = customerMetrics[item.id] || {};
+        const available = (item.credit_limit || 0) - (item.used_credit || 0);
+        return (
+          <div className="text-right">
+            <div className="font-medium">
+              <Currency value={available} />
+            </div>
+            {m.totalOverdue > 0 && (
+              <div className="text-xs text-destructive font-medium">
+                {formatCurrency(m.totalOverdue)} em atraso
+              </div>
+            )}
+            {m.totalOverdue === 0 && item.credit_limit > 0 && (
+              <div className="text-xs text-muted-foreground">
+                de {formatCurrency(item.credit_limit)}
+              </div>
+            )}
+          </div>
+        );
       }
     },
     {
@@ -386,6 +520,87 @@ export default function Customers() {
           </div>
         }
       />
+
+      {/* Segment Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <button
+          onClick={() => setSegmentFilter('all')}
+          className={`p-3 rounded-xl border transition-all text-left ${
+            segmentFilter === 'all' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-card hover:bg-muted/50'
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="w-4 h-4 text-primary" />
+            <span className="text-2xl font-bold">{segmentCounts.all}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Todos</p>
+        </button>
+
+        <button
+          onClick={() => setSegmentFilter('vip')}
+          className={`p-3 rounded-xl border transition-all text-left ${
+            segmentFilter === 'vip' ? 'border-warning bg-warning/5 ring-1 ring-warning' : 'border-border bg-card hover:bg-muted/50'
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <Crown className="w-4 h-4 text-warning" />
+            <span className="text-2xl font-bold text-warning">{segmentCounts.vip}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">VIP</p>
+        </button>
+
+        <button
+          onClick={() => setSegmentFilter('active')}
+          className={`p-3 rounded-xl border transition-all text-left ${
+            segmentFilter === 'active' ? 'border-success bg-success/5 ring-1 ring-success' : 'border-border bg-card hover:bg-muted/50'
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="w-4 h-4 text-success" />
+            <span className="text-2xl font-bold text-success">{segmentCounts.active}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Ativos</p>
+        </button>
+
+        <button
+          onClick={() => setSegmentFilter('overdue')}
+          className={`p-3 rounded-xl border transition-all text-left ${
+            segmentFilter === 'overdue' ? 'border-destructive bg-destructive/5 ring-1 ring-destructive' : 'border-border bg-card hover:bg-muted/50'
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle className="w-4 h-4 text-destructive" />
+            <span className="text-2xl font-bold text-destructive">{segmentCounts.overdue}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Inadimplentes</p>
+        </button>
+
+        <button
+          onClick={() => setSegmentFilter('inactive')}
+          className={`p-3 rounded-xl border transition-all text-left ${
+            segmentFilter === 'inactive' ? 'border-muted-foreground bg-muted/50 ring-1 ring-muted-foreground' : 'border-border bg-card hover:bg-muted/50'
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <span className="text-2xl font-bold">{segmentCounts.inactive}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Inativos (+90d)</p>
+        </button>
+
+        <button
+          onClick={() => setSegmentFilter('blocked')}
+          className={`p-3 rounded-xl border transition-all text-left ${
+            segmentFilter === 'blocked' ? 'border-destructive bg-destructive/5 ring-1 ring-destructive' : 'border-border bg-card hover:bg-muted/50'
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <Ban className="w-4 h-4 text-destructive" />
+            <span className="text-2xl font-bold">{segmentCounts.blocked}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Bloqueados</p>
+        </button>
+      </div>
 
       {/* Search */}
       <CardSection>

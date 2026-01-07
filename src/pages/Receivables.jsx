@@ -38,7 +38,7 @@ export default function Receivables() {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('pendente');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [showReceiveDialog, setShowReceiveDialog] = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState(null);
   const [paymentData, setPaymentData] = useState({
@@ -67,11 +67,14 @@ export default function Receivables() {
 
   const loadData = async () => {
     try {
+      console.log('[Receivables] Carregando dados...');
       const [installmentsData, customersData, methodsData] = await Promise.all([
         base44.entities.Installment.list('-due_date'),
         base44.entities.Customer.list(),
         base44.entities.PaymentMethod.list()
       ]);
+
+      console.log('[Receivables] Parcelas carregadas:', installmentsData?.length || 0, installmentsData);
 
       const updatedInstallments = installmentsData.map(inst => {
         if (inst.status === 'pendente' && inst.due_date && isPast(new Date(inst.due_date))) {
@@ -98,12 +101,24 @@ export default function Receivables() {
     }
 
     try {
-      await base44.entities.Installment.update(selectedInstallment.id, {
+      // Dados base para atualização
+      const updateData = {
         status: 'pago',
         paid_date: paymentData.paid_date,
         paid_amount: paymentData.paid_amount,
-        payment_method_id: paymentData.payment_method_id
-      });
+      };
+
+      // Tentar com payment_method_id (coluna opcional)
+      try {
+        await base44.entities.Installment.update(selectedInstallment.id, {
+          ...updateData,
+          payment_method_id: paymentData.payment_method_id
+        });
+      } catch (e) {
+        // Se falhar, tenta sem payment_method_id
+        console.warn('Tentando sem payment_method_id:', e.message);
+        await base44.entities.Installment.update(selectedInstallment.id, updateData);
+      }
 
       const customer = customers.find(c => c.id === selectedInstallment.customer_id);
       if (customer) {
@@ -118,7 +133,7 @@ export default function Receivables() {
       loadData();
     } catch (error) {
       console.error('Error receiving installment:', error);
-      toast.error('Erro ao registrar recebimento');
+      toast.error(`Erro ao registrar recebimento: ${error.message || 'Erro desconhecido'}`);
     }
   };
 
@@ -145,33 +160,37 @@ export default function Receivables() {
     }
 
     try {
+      // Dados base que existem no schema
       const data = {
         description: formData.description,
         amount: parseFloat(formData.amount),
         due_date: formData.due_date,
         customer_id: formData.customer_id || null,
-        category: formData.category || 'outros',
         installment_number: parseInt(formData.installment_number) || 1,
         total_installments: parseInt(formData.total_installments) || 1,
         notes: formData.notes || '',
         status: 'pendente',
-        is_manual: true,
       };
 
+      console.log('[Receivables] Salvando conta:', data);
+
       if (editingReceivable) {
-        await base44.entities.Installment.update(editingReceivable.id, data);
+        const result = await base44.entities.Installment.update(editingReceivable.id, data);
+        console.log('[Receivables] Conta atualizada:', result);
         toast.success('Conta a receber atualizada');
       } else {
-        await base44.entities.Installment.create(data);
+        const result = await base44.entities.Installment.create(data);
+        console.log('[Receivables] Conta criada:', result);
         toast.success('Conta a receber cadastrada');
       }
 
       setShowCreateDialog(false);
       resetForm();
-      loadData();
+      await loadData();
+      console.log('[Receivables] Dados recarregados');
     } catch (error) {
       console.error('Error saving receivable:', error);
-      toast.error('Erro ao salvar conta a receber');
+      toast.error(`Erro ao salvar conta a receber: ${error.message || 'Erro desconhecido'}`);
     }
   };
 
@@ -211,7 +230,11 @@ export default function Receivables() {
   };
 
   const filteredInstallments = installments.filter(inst => {
-    const matchSearch = getCustomerName(inst.customer_id).toLowerCase().includes(searchTerm.toLowerCase());
+    const customerName = getCustomerName(inst.customer_id).toLowerCase();
+    const description = (inst.description || '').toLowerCase();
+    const category = (inst.category || '').toLowerCase();
+    const search = searchTerm.toLowerCase();
+    const matchSearch = customerName.includes(search) || description.includes(search) || category.includes(search);
     const matchStatus = statusFilter === 'all' || inst.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -237,24 +260,39 @@ export default function Receivables() {
     return statusMap[status] || { status: 'default', label: status };
   };
 
+  const getCategoryLabel = (value) => {
+    const cat = RECEIVABLE_CATEGORIES.find(c => c.value === value);
+    return cat?.label || value || '-';
+  };
+
   const columns = [
     {
-      key: 'customer_id',
-      label: 'Cliente',
+      key: 'description',
+      label: 'Descrição',
       render: (_, inst) => (
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <User className="w-4 h-4 text-primary" />
-          </div>
-          <span className="font-medium">{getCustomerName(inst.customer_id)}</span>
+        <div>
+          <p className="font-medium">{inst.description || getCustomerName(inst.customer_id)}</p>
+          {inst.description && inst.customer_id && (
+            <p className="text-xs text-muted-foreground">{getCustomerName(inst.customer_id)}</p>
+          )}
+          {inst.notes && (
+            <p className="text-xs text-muted-foreground truncate max-w-xs">{inst.notes}</p>
+          )}
         </div>
+      )
+    },
+    {
+      key: 'category',
+      label: 'Categoria',
+      render: (_, inst) => (
+        <span className="capitalize text-sm">{getCategoryLabel(inst.category)}</span>
       )
     },
     {
       key: 'installment',
       label: 'Parcela',
       render: (_, inst) => (
-        <span className="font-mono">{inst.installment_number}/{inst.total_installments}</span>
+        <span className="font-mono text-sm">{inst.installment_number}/{inst.total_installments}</span>
       )
     },
     {
@@ -388,7 +426,7 @@ export default function Receivables() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por cliente..."
+              placeholder="Buscar por descrição, cliente ou categoria..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -539,12 +577,12 @@ export default function Receivables() {
               </div>
               <div>
                 <Label>Cliente</Label>
-                <Select value={formData.customer_id} onValueChange={(v) => setFormData({ ...formData, customer_id: v })}>
+                <Select value={formData.customer_id || '_none'} onValueChange={(v) => setFormData({ ...formData, customer_id: v === '_none' ? '' : v })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="_none">Nenhum</SelectItem>
                     {customers.map(customer => (
                       <SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>
                     ))}

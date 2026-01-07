@@ -1049,8 +1049,8 @@ export default function PDV({ onModeChange, currentMode, operator }) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center animate-pulse">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center animate-pulse">
+            <ShoppingCart className="w-8 h-8 text-primary-foreground" />
           </div>
           <p className="text-muted-foreground font-medium">Carregando PDV...</p>
         </div>

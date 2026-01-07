@@ -14,7 +14,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, DollarSign, Receipt, ArrowRight, X } from 'lucide-react';
+import { AlertTriangle, DollarSign, Receipt, Lock, X } from 'lucide-react';
 
 export default function CashWarningModal() {
   const navigate = useNavigate();
@@ -31,9 +31,11 @@ export default function CashWarningModal() {
   // Calcular valores do caixa
   const openingBalance = parseFloat(openCashRegister.opening_balance) || 0;
   const totalSales = parseFloat(openCashRegister.total_sales) || 0;
+  const cashSales = parseFloat(openCashRegister.cash_sales) || 0;
   const totalWithdrawals = parseFloat(openCashRegister.total_withdrawals) || 0;
   const totalDeposits = parseFloat(openCashRegister.total_deposits) || 0;
-  const expectedBalance = openingBalance + totalSales + totalDeposits - totalWithdrawals;
+  // Saldo esperado em dinheiro: abertura + vendas em dinheiro + suprimentos - sangrias
+  const expectedBalance = openingBalance + cashSales + totalDeposits - totalWithdrawals;
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -45,12 +47,8 @@ export default function CashWarningModal() {
   const handleCloseCash = async () => {
     const result = await confirmLogoutWithOpenCash('close');
     if (result.action === 'close_cash') {
-      navigate('/caixa');
+      navigate('/CashRegister');
     }
-  };
-
-  const handleTransfer = async () => {
-    await confirmLogoutWithOpenCash('transfer');
   };
 
   return (
@@ -58,20 +56,34 @@ export default function CashWarningModal() {
       <DialogContent className="max-w-md" hideCloseButton>
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-warning" />
+            <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Lock className="w-6 h-6 text-destructive" />
             </div>
             <div>
-              <DialogTitle>Caixa Aberto</DialogTitle>
+              <DialogTitle>Feche o Caixa Primeiro</DialogTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                {operator?.full_name}, voce tem um caixa em aberto
+                {operator?.full_name}, voce precisa fechar seu caixa antes de trocar de operador
               </p>
             </div>
           </div>
         </DialogHeader>
 
+        {/* Alerta */}
+        <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-medium text-destructive">Troca de operador bloqueada</p>
+              <p className="text-muted-foreground mt-1">
+                Por seguranca, e obrigatorio fechar o caixa e conferir os valores antes de trocar de operador.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Resumo do Caixa */}
         <div className="bg-muted/50 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-medium text-muted-foreground mb-2">Resumo do seu caixa:</p>
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Abertura</span>
             <span className="font-medium">{formatCurrency(openingBalance)}</span>
@@ -79,9 +91,13 @@ export default function CashWarningModal() {
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground flex items-center gap-1">
               <Receipt className="w-4 h-4" />
-              Vendas
+              Vendas ({openCashRegister.sales_count || 0})
             </span>
-            <span className="font-medium text-green-600">+{formatCurrency(totalSales)}</span>
+            <span className="font-medium">{formatCurrency(totalSales)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground pl-5">- Em dinheiro</span>
+            <span className="font-medium text-green-600">+{formatCurrency(cashSales)}</span>
           </div>
           {totalDeposits > 0 && (
             <div className="flex items-center justify-between">
@@ -98,33 +114,20 @@ export default function CashWarningModal() {
           <div className="border-t pt-3 flex items-center justify-between">
             <span className="font-medium flex items-center gap-1">
               <DollarSign className="w-4 h-4" />
-              Valor Esperado
+              Saldo Esperado (Dinheiro)
             </span>
             <span className="text-lg font-bold text-primary">{formatCurrency(expectedBalance)}</span>
           </div>
         </div>
 
-        {/* Opcoes */}
-        <div className="space-y-2 text-sm text-muted-foreground">
-          <p><strong>O que deseja fazer?</strong></p>
-          <ul className="space-y-1 ml-4">
-            <li>• <strong>Fechar Caixa:</strong> Encerra seu turno e confere os valores</li>
-            <li>• <strong>Transferir:</strong> Deixa o caixa aberto para o proximo operador</li>
-          </ul>
-        </div>
-
         <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={cancelLogout} className="w-full sm:w-auto">
             <X className="w-4 h-4 mr-2" />
-            Cancelar
-          </Button>
-          <Button variant="secondary" onClick={handleTransfer} className="w-full sm:w-auto">
-            <ArrowRight className="w-4 h-4 mr-2" />
-            Transferir
+            Voltar
           </Button>
           <Button onClick={handleCloseCash} className="w-full sm:w-auto">
             <DollarSign className="w-4 h-4 mr-2" />
-            Fechar Caixa
+            Ir para Fechar Caixa
           </Button>
         </DialogFooter>
       </DialogContent>

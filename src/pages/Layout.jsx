@@ -435,6 +435,15 @@ export default function Layout({ children, currentPageName }) {
             </nav>
             {currentUser && (
               <div className="border-t border-sidebar-border p-3">
+                {/* Botao Trocar Operador - Destacado */}
+                <button
+                  onClick={() => { setMobileMenuOpen(false); openOperatorSelect(); }}
+                  className="w-full mb-3 px-4 py-3 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/20 flex items-center justify-center gap-2 transition-all group"
+                >
+                  <RefreshCw className="w-5 h-5 text-primary group-hover:rotate-180 transition-transform duration-300" />
+                  <span className="text-sm font-semibold text-primary">Trocar Operador</span>
+                </button>
+
                 <div className="flex items-center gap-3 p-2 rounded-lg mb-2">
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-primary text-primary-foreground font-semibold text-sm">
                     {getInitials(currentUser.full_name)}
@@ -450,24 +459,14 @@ export default function Layout({ children, currentPageName }) {
                     </p>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-sidebar-muted hover:text-primary hover:bg-primary/10"
-                    onClick={() => { setMobileMenuOpen(false); openOperatorSelect(); }}
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Trocar Operador
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-sidebar-muted hover:text-destructive hover:bg-destructive/10"
-                    onClick={logout}
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Sair do Sistema
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-sidebar-muted hover:text-destructive hover:bg-destructive/10"
+                  onClick={logout}
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sair do Sistema
+                </Button>
               </div>
             )}
           </div>
@@ -532,6 +531,31 @@ export default function Layout({ children, currentPageName }) {
           {/* User Profile */}
           {currentUser && (
             <div className="p-2 border-t border-sidebar-border">
+              {/* Botao Trocar Operador - Destacado */}
+              {sidebarOpen ? (
+                <button
+                  onClick={openOperatorSelect}
+                  className="w-full mb-2 px-3 py-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/20 flex items-center gap-2 transition-all group"
+                >
+                  <RefreshCw className="w-4 h-4 text-primary group-hover:rotate-180 transition-transform duration-300" />
+                  <span className="text-sm font-medium text-primary">Trocar Operador</span>
+                </button>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={openOperatorSelect}
+                      className="w-full mb-2 p-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/20 flex items-center justify-center transition-all group"
+                    >
+                      <RefreshCw className="w-4 h-4 text-primary group-hover:rotate-180 transition-transform duration-300" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    Trocar Operador
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
               <div className={cn(
                 "flex items-center gap-3 p-2 rounded-lg",
                 !sidebarOpen && "justify-center p-1"
@@ -566,69 +590,39 @@ export default function Layout({ children, currentPageName }) {
                   </div>
                 )}
 
-                {/* Switch Operator & Logout Buttons */}
+                {/* Logout Button */}
                 {sidebarOpen && (
-                  <div className="flex items-center gap-1">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={openOperatorSelect}
-                          className="p-1.5 rounded-md text-sidebar-muted hover:text-primary hover:bg-primary/10 transition-all"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Trocar Operador
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={logout}
-                          className="p-1.5 rounded-md text-sidebar-muted hover:text-destructive hover:bg-destructive/10 transition-all"
-                        >
-                          <LogOut className="w-4 h-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Sair do Sistema
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                )}
-              </div>
-
-              {/* Collapsed Buttons */}
-              {!sidebarOpen && (
-                <div className="space-y-1 mt-1">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={openOperatorSelect}
-                        className="w-full p-2 rounded-lg flex items-center justify-center text-sidebar-muted hover:text-primary hover:bg-primary/10 transition-all"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      Trocar Operador
-                    </TooltipContent>
-                  </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         onClick={logout}
-                        className="w-full p-2 rounded-lg flex items-center justify-center text-sidebar-muted hover:text-destructive hover:bg-destructive/10 transition-all"
+                        className="p-1.5 rounded-md text-sidebar-muted hover:text-destructive hover:bg-destructive/10 transition-all"
                       >
                         <LogOut className="w-4 h-4" />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent side="right">
+                    <TooltipContent side="top">
                       Sair do Sistema
                     </TooltipContent>
                   </Tooltip>
-                </div>
+                )}
+              </div>
+
+              {/* Collapsed Logout */}
+              {!sidebarOpen && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={logout}
+                      className="w-full p-2 rounded-lg flex items-center justify-center text-sidebar-muted hover:text-destructive hover:bg-destructive/10 transition-all"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    Sair do Sistema
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
           )}

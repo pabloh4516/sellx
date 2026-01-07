@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Search, Eye, Receipt, User, Calendar, TrendingUp, DollarSign, ShoppingBag, Edit2, Save, X, Plus, Minus, Trash2, Lock } from 'lucide-react';
+import { Search, Eye, Receipt, User, Calendar, TrendingUp, DollarSign, ShoppingBag, Edit2, Save, X, Plus, Minus, Trash2, Lock, Filter, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   PageContainer,
@@ -32,6 +32,11 @@ export default function Sales() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [employeeFilter, setEmployeeFilter] = useState('all');
+  const [paymentFilter, setPaymentFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all'); // all, today, week, month, custom
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -115,6 +120,42 @@ export default function Sales() {
     }).format(value || 0);
   };
 
+  // Função para verificar se a data está no período selecionado
+  const isDateInRange = (dateStr) => {
+    if (!dateStr) return false;
+    const saleDate = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    switch (dateFilter) {
+      case 'today':
+        const endOfToday = new Date(today);
+        endOfToday.setHours(23, 59, 59, 999);
+        return saleDate >= today && saleDate <= endOfToday;
+      case 'week':
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return saleDate >= weekAgo;
+      case 'month':
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        return saleDate >= monthAgo;
+      case 'custom':
+        if (!startDate && !endDate) return true;
+        const start = startDate ? new Date(startDate) : new Date(0);
+        const end = endDate ? new Date(endDate) : new Date();
+        end.setHours(23, 59, 59, 999);
+        return saleDate >= start && saleDate <= end;
+      default:
+        return true;
+    }
+  };
+
+  // Extrair formas de pagamento únicas
+  const paymentMethods = [...new Set(
+    sales.flatMap(s => (s.payments || []).map(p => p.method_name || p.method))
+  )].filter(Boolean);
+
   const filteredSales = sales.filter(sale => {
     const matchSearch =
       sale.sale_number?.toString().includes(searchTerm) ||
@@ -124,7 +165,12 @@ export default function Sales() {
     const matchEmployee = employeeFilter === 'all' ||
       sale.operator_id === employeeFilter ||
       sale.seller_id === employeeFilter;
-    return matchSearch && matchStatus && matchEmployee;
+    // Filtro por data
+    const matchDate = dateFilter === 'all' || isDateInRange(sale.sale_date || sale.created_at);
+    // Filtro por forma de pagamento
+    const matchPayment = paymentFilter === 'all' ||
+      (sale.payments || []).some(p => (p.method_name || p.method) === paymentFilter);
+    return matchSearch && matchStatus && matchEmployee && matchDate && matchPayment;
   });
 
   const totalSales = filteredSales.reduce((sum, s) => sum + (s.total || 0), 0);
@@ -461,43 +507,131 @@ export default function Sales() {
 
       {/* Filtros */}
       <CardSection>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por numero ou cliente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os status</SelectItem>
-              <SelectItem value="concluida">Concluida</SelectItem>
-              <SelectItem value="orcamento">Orcamento</SelectItem>
-              <SelectItem value="prevenda">Pre-venda</SelectItem>
-              <SelectItem value="cancelada">Cancelada</SelectItem>
-            </SelectContent>
-          </Select>
-          {/* Filtro por funcionario - apenas para admin/gerente/owner */}
-          {canViewAllSales && operators.length > 0 && (
-            <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder="Filtrar por funcionario" />
+        <div className="space-y-4">
+          {/* Linha principal de filtros */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por numero ou cliente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            {/* Filtro rapido de periodo */}
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger className="w-40">
+                <Calendar className="w-4 h-4 mr-2" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os funcionarios</SelectItem>
-                {operators.map(op => (
-                  <SelectItem key={op.id} value={op.id}>
-                    {op.full_name || op.email}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">Todo periodo</SelectItem>
+                <SelectItem value="today">Hoje</SelectItem>
+                <SelectItem value="week">Ultimos 7 dias</SelectItem>
+                <SelectItem value="month">Ultimos 30 dias</SelectItem>
+                <SelectItem value="custom">Personalizado</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos status</SelectItem>
+                <SelectItem value="concluida">Concluida</SelectItem>
+                <SelectItem value="orcamento">Orcamento</SelectItem>
+                <SelectItem value="prevenda">Pre-venda</SelectItem>
+                <SelectItem value="cancelada">Cancelada</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant={showFilters ? "secondary" : "outline"}
+              onClick={() => setShowFilters(!showFilters)}
+              className="gap-2"
+            >
+              <Filter className="w-4 h-4" />
+              Mais filtros
+            </Button>
+          </div>
+
+          {/* Filtros expandidos */}
+          {showFilters && (
+            <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t">
+              {/* Datas customizadas */}
+              {dateFilter === 'custom' && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm whitespace-nowrap">De:</Label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-40"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm whitespace-nowrap">Ate:</Label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-40"
+                    />
+                  </div>
+                </>
+              )}
+              {/* Filtro por forma de pagamento */}
+              {paymentMethods.length > 0 && (
+                <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+                  <SelectTrigger className="w-48">
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Forma de pagamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as formas</SelectItem>
+                    {paymentMethods.map(method => (
+                      <SelectItem key={method} value={method}>
+                        {method}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {/* Filtro por funcionario - apenas para admin/gerente/owner */}
+              {canViewAllSales && operators.length > 0 && (
+                <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+                  <SelectTrigger className="w-56">
+                    <User className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Filtrar por funcionario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os funcionarios</SelectItem>
+                    {operators.map(op => (
+                      <SelectItem key={op.id} value={op.id}>
+                        {op.full_name || op.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {/* Botao limpar filtros */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDateFilter('all');
+                  setStatusFilter('all');
+                  setPaymentFilter('all');
+                  setEmployeeFilter('all');
+                  setStartDate('');
+                  setEndDate('');
+                  setSearchTerm('');
+                }}
+              >
+                Limpar filtros
+              </Button>
+            </div>
           )}
         </div>
       </CardSection>

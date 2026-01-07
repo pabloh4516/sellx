@@ -10,7 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import {
-  Plus, Search, Edit, Trash2, Package, Image, MoreVertical, FileSpreadsheet
+  Plus, Search, Edit, Trash2, Package, Image, MoreVertical, FileSpreadsheet,
+  AlertTriangle, TrendingUp, DollarSign, BarChart3
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ExportMenu } from '@/components/ui/export-menu';
@@ -29,6 +30,8 @@ import {
   StatusBadge,
   Currency,
   TableAvatar,
+  Grid,
+  MiniMetric,
 } from '@/components/nexo';
 
 // Unidades de medida disponiveis
@@ -62,6 +65,7 @@ export default function Products() {
   const [loading, setLoading, isTimeout] = useSafeLoading(true, 20000); // 20s timeout
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGroup, setFilterGroup] = useState('all');
+  const [filterStock, setFilterStock] = useState('all'); // all, zero, low, ok
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({
@@ -262,13 +266,33 @@ export default function Products() {
     }).format(value || 0);
   };
 
+  // Calcular metricas
+  const lowStockCount = products.filter(p => p.stock_quantity > 0 && p.stock_quantity <= (p.min_stock || 0)).length;
+  const zeroStockCount = products.filter(p => p.stock_quantity === 0).length;
+  const avgMargin = products.reduce((sum, p) => {
+    if (p.cost_price && p.sale_price) {
+      return sum + ((p.sale_price - p.cost_price) / p.cost_price) * 100;
+    }
+    return sum;
+  }, 0) / (products.filter(p => p.cost_price && p.sale_price).length || 1);
+  const totalStockValue = products.reduce((sum, p) => sum + ((p.stock_quantity || 0) * (p.cost_price || 0)), 0);
+
   const filteredProducts = products.filter(product => {
     const matchSearch =
       product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.barcode?.includes(searchTerm);
     const matchGroup = filterGroup === 'all' || product.group_id === filterGroup;
-    return matchSearch && matchGroup;
+    // Filtro de estoque
+    let matchStock = true;
+    if (filterStock === 'zero') {
+      matchStock = product.stock_quantity === 0;
+    } else if (filterStock === 'low') {
+      matchStock = product.stock_quantity > 0 && product.stock_quantity <= (product.min_stock || 0);
+    } else if (filterStock === 'ok') {
+      matchStock = product.stock_quantity > (product.min_stock || 0);
+    }
+    return matchSearch && matchGroup && matchStock;
   });
 
   const getGroupName = (id) => groups.find(g => g.id === id)?.name || '-';
@@ -313,15 +337,40 @@ export default function Products() {
       )
     },
     {
+      key: 'margin',
+      header: 'Margem',
+      align: 'center',
+      render: (_, item) => {
+        if (!item.cost_price || !item.sale_price) return <span className="text-muted-foreground">-</span>;
+        const margin = ((item.sale_price - item.cost_price) / item.cost_price) * 100;
+        const colorClass = margin >= 30 ? 'text-success' : margin >= 15 ? 'text-warning' : 'text-destructive';
+        return (
+          <div className="flex items-center gap-1">
+            <div className={`w-16 h-2 bg-muted rounded-full overflow-hidden`}>
+              <div
+                className={`h-full ${margin >= 30 ? 'bg-success' : margin >= 15 ? 'bg-warning' : 'bg-destructive'}`}
+                style={{ width: `${Math.min(margin, 100)}%` }}
+              />
+            </div>
+            <span className={`text-xs font-medium ${colorClass}`}>{margin.toFixed(0)}%</span>
+          </div>
+        );
+      }
+    },
+    {
       key: 'stock',
       header: 'Estoque',
       align: 'center',
-      render: (_, item) => (
-        <StatusBadge
-          status={item.stock_quantity <= (item.min_stock || 0) ? 'danger' : 'success'}
-          label={`${item.stock_quantity || 0} ${item.unit}`}
-        />
-      )
+      render: (_, item) => {
+        const status = item.stock_quantity === 0 ? 'danger' :
+          item.stock_quantity <= (item.min_stock || 0) ? 'warning' : 'success';
+        return (
+          <StatusBadge
+            status={status}
+            label={`${item.stock_quantity || 0} ${item.unit}`}
+          />
+        );
+      }
     },
     {
       key: 'status',
@@ -414,6 +463,33 @@ export default function Products() {
         }
       />
 
+      {/* Metricas */}
+      <Grid cols={4}>
+        <MiniMetric
+          label="Total de Produtos"
+          value={products.length}
+          icon={Package}
+        />
+        <MiniMetric
+          label="Estoque Zerado"
+          value={zeroStockCount}
+          icon={AlertTriangle}
+          status={zeroStockCount > 0 ? 'danger' : 'default'}
+        />
+        <MiniMetric
+          label="Estoque Baixo"
+          value={lowStockCount}
+          icon={AlertTriangle}
+          status={lowStockCount > 0 ? 'warning' : 'default'}
+        />
+        <MiniMetric
+          label="Margem Media"
+          value={`${avgMargin.toFixed(1)}%`}
+          icon={TrendingUp}
+          status={avgMargin >= 30 ? 'success' : avgMargin >= 15 ? 'warning' : 'danger'}
+        />
+      </Grid>
+
       {/* Filters */}
       <CardSection>
         <div className="flex flex-col sm:flex-row gap-4">
@@ -435,6 +511,17 @@ export default function Products() {
               {groups.map(group => (
                 <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterStock} onValueChange={setFilterStock}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Estoque" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="zero">Zerado</SelectItem>
+              <SelectItem value="low">Baixo</SelectItem>
+              <SelectItem value="ok">Normal</SelectItem>
             </SelectContent>
           </Select>
         </div>

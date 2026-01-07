@@ -14,7 +14,7 @@ import {
   Wallet, DollarSign, TrendingUp, AlertCircle,
   Minus, Lock, Unlock, ArrowUpCircle, ArrowDownCircle, Clock, User,
   CreditCard, Banknote, QrCode, Receipt, Printer, FileText, CheckCircle,
-  Calculator, ShoppingBag, Coins, Users2, Info, Settings
+  Calculator, ShoppingBag, Coins, Users2, Info, Settings, Eye, Trophy
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -312,20 +312,107 @@ export default function CashRegister() {
       calculateTotalWithdrawals();
   };
 
+  // Helper para parsear payments que podem estar como string JSON ou objeto
+  const parsePayments = (sale) => {
+    if (!sale.payments) return [];
+
+    let payments = sale.payments;
+
+    // Se payments é string, parsear como JSON
+    if (typeof payments === 'string') {
+      try {
+        payments = JSON.parse(payments);
+      } catch (e) {
+        console.warn('Erro ao parsear payments:', e);
+        return [];
+      }
+    }
+
+    // Garantir que é array
+    if (!Array.isArray(payments)) {
+      console.warn('Payments não é array:', typeof payments);
+      return [];
+    }
+
+    return payments;
+  };
+
+  // Verificar se um pagamento é em dinheiro
+  const isCashPayment = (payment, methodsList = []) => {
+    // Primeiro, verificar pelo method_name diretamente (mais confiável)
+    const methodName = (payment.method_name || '').toLowerCase();
+    if (methodName === 'dinheiro' || methodName.includes('dinheiro')) {
+      return true;
+    }
+
+    // Se não tem method_name, tentar pelo method_id
+    if (payment.method_id && methodsList.length > 0) {
+      const method = methodsList.find(m => m.id === payment.method_id);
+      if (method) {
+        const methodType = (method.type || '').toLowerCase();
+        return methodType === 'dinheiro' || methodType === 'cash';
+      }
+    }
+
+    return false;
+  };
+
   // Calculate breakdown by payment method
   const calculatePaymentBreakdown = () => {
     const breakdown = {};
 
     sales.forEach(sale => {
-      (sale.payments || []).forEach(payment => {
-        const methodId = payment.method_id;
-        const method = paymentMethods.find(m => m.id === methodId);
-        const methodName = payment.method_name || method?.name || 'Outros';
-        const methodType = method?.type || 'dinheiro';
+      const payments = parsePayments(sale);
 
-        if (!breakdown[methodId]) {
-          breakdown[methodId] = {
-            id: methodId,
+      // Formato novo: array de payments
+      if (payments.length > 0) {
+        payments.forEach(payment => {
+          const methodId = payment.method_id;
+          const method = paymentMethods.find(m => m.id === methodId);
+          const methodName = payment.method_name || method?.name || 'Outros';
+          const methodType = method?.type || 'dinheiro';
+
+          if (!breakdown[methodId]) {
+            breakdown[methodId] = {
+              id: methodId,
+              name: methodName,
+              type: methodType,
+              total: 0,
+              count: 0
+            };
+          }
+
+          breakdown[methodId].total += parseFloat(payment.amount) || 0;
+          breakdown[methodId].count += 1;
+        });
+      }
+      // Formato antigo: payment_method como string
+      else if (sale.payment_method || sale.paymentMethod) {
+        const pm = sale.payment_method || sale.paymentMethod;
+        const pmLower = (pm || '').toLowerCase();
+
+        // Mapear nome para tipo
+        let methodType = 'outros';
+        let methodName = pm;
+
+        if (pmLower === 'cash' || pmLower === 'dinheiro' || pmLower.includes('dinheiro')) {
+          methodType = 'dinheiro';
+          methodName = 'Dinheiro';
+        } else if (pmLower === 'credit' || pmLower === 'credito' || pmLower.includes('credito') || pmLower.includes('credit')) {
+          methodType = 'credito';
+          methodName = 'Cartao de Credito';
+        } else if (pmLower === 'debit' || pmLower === 'debito' || pmLower.includes('debito') || pmLower.includes('debit')) {
+          methodType = 'debito';
+          methodName = 'Cartao de Debito';
+        } else if (pmLower === 'pix' || pmLower.includes('pix')) {
+          methodType = 'pix';
+          methodName = 'PIX';
+        }
+
+        const methodKey = `legacy_${methodType}`;
+        if (!breakdown[methodKey]) {
+          breakdown[methodKey] = {
+            id: methodKey,
             name: methodName,
             type: methodType,
             total: 0,
@@ -333,25 +420,59 @@ export default function CashRegister() {
           };
         }
 
-        breakdown[methodId].total += payment.amount || 0;
-        breakdown[methodId].count += 1;
-      });
+        breakdown[methodKey].total += parseFloat(sale.total) || 0;
+        breakdown[methodKey].count += 1;
+      }
     });
 
     return Object.values(breakdown).sort((a, b) => b.total - a.total);
   };
 
   // Calculate only cash sales (dinheiro) - this is what's expected in the physical cash register
+  // IMPORTANTE: Desconta o troco! Se cliente pagou R$100 em dinheiro para venda de R$76,
+  // o que fica no caixa é R$76 (R$24 voltou como troco)
   const calculateCashSales = () => {
     let cashTotal = 0;
 
-    sales.forEach(sale => {
-      (sale.payments || []).forEach(payment => {
-        const method = paymentMethods.find(m => m.id === payment.method_id);
-        if (method?.type === 'dinheiro') {
-          cashTotal += payment.amount || 0;
+    sales.forEach((sale) => {
+      const payments = parsePayments(sale);
+      const saleTotal = parseFloat(sale.total) || 0;
+
+      // Verificar se tem array de payments (formato novo)
+      if (payments.length > 0) {
+        // Calcular total pago e total em dinheiro
+        let totalPaid = 0;
+        let cashPaid = 0;
+
+        payments.forEach(payment => {
+          const amount = parseFloat(payment.amount) || 0;
+          totalPaid += amount;
+          if (isCashPayment(payment, paymentMethods)) {
+            cashPaid += amount;
+          }
+        });
+
+        // O troco vem do dinheiro
+        const change = Math.max(0, totalPaid - saleTotal);
+        // Dinheiro que fica no caixa = dinheiro pago - troco
+        const cashInRegister = Math.max(0, cashPaid - change);
+
+        cashTotal += cashInRegister;
+      }
+      // Formato antigo: payment_method como string
+      else {
+        const pm = sale.payment_method || sale.paymentMethod;
+        if (pm) {
+          const pmLower = (pm || '').toLowerCase();
+          const isCash = pmLower === 'cash' ||
+                         pmLower === 'dinheiro' ||
+                         pmLower.includes('dinheiro');
+          if (isCash) {
+            // No formato antigo, usamos o total da venda (já sem troco)
+            cashTotal += saleTotal;
+          }
         }
-      });
+      }
     });
 
     return cashTotal;
@@ -690,6 +811,151 @@ export default function CashRegister() {
         />
       </Grid>
 
+      {/* Visao do Gerente - Todos os Caixas Abertos */}
+      {cashRegisterMode === 'per_operator' && isAdminOrManager && allOpenRegisters.length > 1 && (
+        <CardSection
+          title={`Visao Geral - ${allOpenRegisters.length} Caixas Abertos`}
+          icon={Eye}
+        >
+          <div className="space-y-4">
+            {/* Ranking de Operadores */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {(() => {
+                // Calcular totais por operador
+                const operatorStats = allOpenRegisters.map(reg => {
+                  const regSales = sales.filter(s => s.cash_register_id === reg.id);
+                  const total = regSales.reduce((sum, s) => sum + (s.total || 0), 0);
+                  return {
+                    ...reg,
+                    totalSales: total,
+                    salesCount: regSales.length,
+                    avgTicket: regSales.length > 0 ? total / regSales.length : 0
+                  };
+                }).sort((a, b) => b.totalSales - a.totalSales);
+
+                // Top 3
+                return operatorStats.slice(0, 3).map((reg, index) => (
+                  <div
+                    key={reg.id}
+                    className={`p-4 rounded-xl border ${
+                      index === 0 ? 'bg-warning/10 border-warning/30' :
+                      index === 1 ? 'bg-muted/50 border-[#C0C0C0]/30' :
+                      'bg-muted/30 border-[#CD7F32]/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        index === 0 ? 'bg-warning/20' :
+                        index === 1 ? 'bg-[#C0C0C0]/20' :
+                        'bg-[#CD7F32]/20'
+                      }`}>
+                        {index === 0 ? (
+                          <Trophy className={`w-4 h-4 text-warning`} />
+                        ) : (
+                          <span className={`text-sm font-bold ${
+                            index === 1 ? 'text-[#C0C0C0]' : 'text-[#CD7F32]'
+                          }`}>{index + 1}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{reg.opened_by || 'Operador'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Desde {safeFormatDate(reg.opening_date, 'HH:mm')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-2xl font-bold text-primary">{formatCurrency(reg.totalSales)}</p>
+                        <p className="text-xs text-muted-foreground">{reg.salesCount} vendas</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-muted-foreground">Ticket medio</p>
+                        <p className="font-medium">{formatCurrency(reg.avgTicket)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            {/* Lista completa */}
+            <div className="bg-muted/30 rounded-xl p-4">
+              <h4 className="font-medium mb-3 text-sm text-muted-foreground">Todos os Operadores</h4>
+              <div className="space-y-2">
+                {(() => {
+                  const operatorStats = allOpenRegisters.map(reg => {
+                    const regSales = sales.filter(s => s.cash_register_id === reg.id);
+                    const total = regSales.reduce((sum, s) => sum + (s.total || 0), 0);
+                    return {
+                      ...reg,
+                      totalSales: total,
+                      salesCount: regSales.length,
+                      avgTicket: regSales.length > 0 ? total / regSales.length : 0,
+                      isOwn: reg.opened_by_id === currentUser?.id
+                    };
+                  }).sort((a, b) => b.totalSales - a.totalSales);
+
+                  return operatorStats.map((reg, index) => (
+                    <div
+                      key={reg.id}
+                      className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                        reg.isOwn ? 'bg-primary/10 border border-primary/20' : 'bg-card border border-border hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          index === 0 ? 'bg-warning/20 text-warning' :
+                          index === 1 ? 'bg-[#C0C0C0]/20 text-[#C0C0C0]' :
+                          index === 2 ? 'bg-[#CD7F32]/20 text-[#CD7F32]' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {index + 1}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            reg.isOwn ? 'bg-primary/20' : 'bg-success/10'
+                          }`}>
+                            <User className={`w-4 h-4 ${reg.isOwn ? 'text-primary' : 'text-success'}`} />
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">
+                              {reg.opened_by || 'Operador'}
+                              {reg.isOwn && <span className="ml-1 text-xs text-primary">(Voce)</span>}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {reg.salesCount} venda{reg.salesCount !== 1 ? 's' : ''} | Ticket: {formatCurrency(reg.avgTicket)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-primary">{formatCurrency(reg.totalSales)}</p>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Total Geral */}
+              <div className="mt-4 pt-3 border-t border-border">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-medium">Total Geral</p>
+                    <p className="text-xs text-muted-foreground">
+                      {sales.length} vendas em {allOpenRegisters.length} caixas
+                    </p>
+                  </div>
+                  <p className="text-xl font-bold text-primary">
+                    {formatCurrency(sales.reduce((sum, s) => sum + (s.total || 0), 0))}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardSection>
+      )}
+
       {/* Movimentacoes */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Sangrias */}
@@ -978,11 +1244,11 @@ export default function CashRegister() {
                           <div key={method.id} className="flex items-center justify-between p-3 bg-card rounded-lg border">
                             <div className="flex items-center gap-3">
                               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                                method.type === 'dinheiro' ? 'bg-success/10' :
+                                (method.type === 'cash' || method.type === 'dinheiro') ? 'bg-success/10' :
                                 method.type === 'pix' ? 'bg-primary/10' : 'bg-warning/10'
                               }`}>
                                 <Icon className={`w-5 h-5 ${
-                                  method.type === 'dinheiro' ? 'text-success' :
+                                  (method.type === 'cash' || method.type === 'dinheiro') ? 'text-success' :
                                   method.type === 'pix' ? 'text-primary' : 'text-warning'
                                 }`} />
                               </div>

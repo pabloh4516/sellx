@@ -1,3 +1,4 @@
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { OperatorProvider, useOperator } from '@/contexts/OperatorContext';
@@ -6,86 +7,91 @@ import { USER_ROLES } from '@/config/permissions';
 import { InstallAppFab } from '@/components/pwa';
 import CashWarningModal from '@/components/CashWarningModal';
 
-// Landing Page
+// Loading component for Suspense
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
+// Landing Page - carrega estatico (primeira pagina)
 import LandingPage from "./LandingPage";
 
-// Auth Pages
+// Auth Pages - carrega estatico (essenciais)
 import Login from "./Login";
 import Register from "./Register";
 import ForgotPassword from "./ForgotPassword";
 import ResetPassword from "./ResetPassword";
 import OperatorSelect from "./OperatorSelect";
 
-// App Layout
+// App Layout - carrega estatico (estrutura principal)
 import Layout from "./Layout.jsx";
 
-// Admin Pages
-import {
-  AdminLayout,
-  AdminDashboard,
-  AdminOrganizations,
-  AdminUsers,
-  AdminSubscriptions,
-  AdminFinancial,
-  AdminPlans,
-  AdminSettings,
-} from "./admin";
+// Admin Pages - lazy load
+const AdminLayout = lazy(() => import("./admin/AdminLayout"));
+const AdminDashboard = lazy(() => import("./admin/AdminDashboard"));
+const AdminOrganizations = lazy(() => import("./admin/AdminOrganizations"));
+const AdminUsers = lazy(() => import("./admin/AdminUsers"));
+const AdminSubscriptions = lazy(() => import("./admin/AdminSubscriptions"));
+const AdminFinancial = lazy(() => import("./admin/AdminFinancial"));
+const AdminPlans = lazy(() => import("./admin/AdminPlans"));
+const AdminSettings = lazy(() => import("./admin/AdminSettings"));
 
-// Pages
-import BankAccounts from "./BankAccounts";
-import Birthdays from "./Birthdays";
-import CashFlow from "./CashFlow";
-import CashRegister from "./CashRegister";
-import Checks from "./Checks";
-import CompanySettings from "./CompanySettings";
-import Customers from "./Customers";
-import Dashboard from "./Dashboard";
-import DashboardManager from "./DashboardManager";
-import DashboardSeller from "./DashboardSeller";
-import Expenses from "./Expenses";
-import FutureOrders from "./FutureOrders";
-import ImportXML from "./ImportXML";
-import Inventory from "./Inventory";
-import Labels from "./Labels";
-import LoyaltyProgram from "./LoyaltyProgram";
-import OverdueCustomers from "./OverdueCustomers";
-import PDV from "./PDV";
-import PDVQuick from "./PDVQuick";
-import PDVMain from "./PDVMain";
-import Payables from "./Payables";
-import PaymentMethods from "./PaymentMethods";
-import ProductGroups from "./ProductGroups";
-import Products from "./Products";
-import Promotions from "./Promotions";
-import Purchases from "./Purchases";
-import Quotes from "./Quotes";
-import Receivables from "./Receivables";
-import ReportCommissions from "./ReportCommissions";
-import ReportDRE from "./ReportDRE";
-import ReportFinancial from "./ReportFinancial";
-import ReportSales from "./ReportSales";
-import ReportStock from "./ReportStock";
-import Returns from "./Returns";
-import Sales from "./Sales";
-import SearchProducts from "./SearchProducts";
-import Sellers from "./Sellers";
-import ServiceOrders from "./ServiceOrders";
-import Settings from "./Settings";
-import Stock from "./Stock";
-import StockMovements from "./StockMovements";
-import Suppliers from "./Suppliers";
-import StockLocations from "./StockLocations";
-import StockBatches from "./StockBatches";
-import StockTransfers from "./StockTransfers";
-import StockAdjustments from "./StockAdjustments";
-import AuditLog from "./AuditLog";
-import Users from "./Users";
-import Reports from "./Reports";
-import DataImport from "./DataImport";
-import BackupRestore from "./BackupRestore";
-import ThemeSettings from "./ThemeSettings";
-import Billing from "./Billing";
-import Cancellations from "./Cancellations";
+// Pages - lazy load (carregam sob demanda)
+const BankAccounts = lazy(() => import("./BankAccounts"));
+const Birthdays = lazy(() => import("./Birthdays"));
+const CashFlow = lazy(() => import("./CashFlow"));
+const CashRegister = lazy(() => import("./CashRegister"));
+const Checks = lazy(() => import("./Checks"));
+const CompanySettings = lazy(() => import("./CompanySettings"));
+const Customers = lazy(() => import("./Customers"));
+const Dashboard = lazy(() => import("./Dashboard"));
+const DashboardManager = lazy(() => import("./DashboardManager"));
+const DashboardSeller = lazy(() => import("./DashboardSeller"));
+const Expenses = lazy(() => import("./Expenses"));
+const FutureOrders = lazy(() => import("./FutureOrders"));
+const ImportXML = lazy(() => import("./ImportXML"));
+const Inventory = lazy(() => import("./Inventory"));
+const Labels = lazy(() => import("./Labels"));
+const LoyaltyProgram = lazy(() => import("./LoyaltyProgram"));
+const OverdueCustomers = lazy(() => import("./OverdueCustomers"));
+const PDV = lazy(() => import("./PDV"));
+const PDVQuick = lazy(() => import("./PDVQuick"));
+const PDVMain = lazy(() => import("./PDVMain"));
+const Payables = lazy(() => import("./Payables"));
+const PaymentMethods = lazy(() => import("./PaymentMethods"));
+const ProductGroups = lazy(() => import("./ProductGroups"));
+const Products = lazy(() => import("./Products"));
+const Promotions = lazy(() => import("./Promotions"));
+const Purchases = lazy(() => import("./Purchases"));
+const Quotes = lazy(() => import("./Quotes"));
+const Receivables = lazy(() => import("./Receivables"));
+const ReportCommissions = lazy(() => import("./ReportCommissions"));
+const ReportDRE = lazy(() => import("./ReportDRE"));
+const ReportFinancial = lazy(() => import("./ReportFinancial"));
+const ReportSales = lazy(() => import("./ReportSales"));
+const ReportStock = lazy(() => import("./ReportStock"));
+const Returns = lazy(() => import("./Returns"));
+const Sales = lazy(() => import("./Sales"));
+const SearchProducts = lazy(() => import("./SearchProducts"));
+const Sellers = lazy(() => import("./Sellers"));
+const ServiceOrders = lazy(() => import("./ServiceOrders"));
+const Settings = lazy(() => import("./Settings"));
+const Stock = lazy(() => import("./Stock"));
+const StockMovements = lazy(() => import("./StockMovements"));
+const Suppliers = lazy(() => import("./Suppliers"));
+const StockLocations = lazy(() => import("./StockLocations"));
+const StockBatches = lazy(() => import("./StockBatches"));
+const StockTransfers = lazy(() => import("./StockTransfers"));
+const StockAdjustments = lazy(() => import("./StockAdjustments"));
+const AuditLog = lazy(() => import("./AuditLog"));
+const Users = lazy(() => import("./Users"));
+const Reports = lazy(() => import("./Reports"));
+const DataImport = lazy(() => import("./DataImport"));
+const BackupRestore = lazy(() => import("./BackupRestore"));
+const ThemeSettings = lazy(() => import("./ThemeSettings"));
+const Billing = lazy(() => import("./Billing"));
+const Cancellations = lazy(() => import("./Cancellations"));
 
 const PAGES = {
   BankAccounts,
@@ -250,8 +256,9 @@ function AppContent() {
 
   return (
     <Layout currentPageName={currentPage}>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
         <Route path="/BankAccounts" element={<BankAccounts />} />
         <Route path="/Birthdays" element={<Birthdays />} />
         <Route path="/CashFlow" element={<CashFlow />} />
@@ -305,7 +312,8 @@ function AppContent() {
         <Route path="/ThemeSettings" element={<ThemeSettings />} />
         <Route path="/Billing" element={<Billing />} />
         <Route path="/Cancellations" element={<Cancellations />} />
-      </Routes>
+        </Routes>
+      </Suspense>
     </Layout>
   );
 }
@@ -382,17 +390,19 @@ function AppRouter() {
         path="/admin"
         element={
           <SuperAdminRoute>
-            <AdminLayout />
+            <Suspense fallback={<PageLoader />}>
+              <AdminLayout />
+            </Suspense>
           </SuperAdminRoute>
         }
       >
-        <Route index element={<AdminDashboard />} />
-        <Route path="organizations" element={<AdminOrganizations />} />
-        <Route path="users" element={<AdminUsers />} />
-        <Route path="subscriptions" element={<AdminSubscriptions />} />
-        <Route path="financial" element={<AdminFinancial />} />
-        <Route path="plans" element={<AdminPlans />} />
-        <Route path="settings" element={<AdminSettings />} />
+        <Route index element={<Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense>} />
+        <Route path="organizations" element={<Suspense fallback={<PageLoader />}><AdminOrganizations /></Suspense>} />
+        <Route path="users" element={<Suspense fallback={<PageLoader />}><AdminUsers /></Suspense>} />
+        <Route path="subscriptions" element={<Suspense fallback={<PageLoader />}><AdminSubscriptions /></Suspense>} />
+        <Route path="financial" element={<Suspense fallback={<PageLoader />}><AdminFinancial /></Suspense>} />
+        <Route path="plans" element={<Suspense fallback={<PageLoader />}><AdminPlans /></Suspense>} />
+        <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettings /></Suspense>} />
       </Route>
 
       {/* Rotas protegidas (app) */}

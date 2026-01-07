@@ -135,6 +135,20 @@ export default function A4ReceiptPrint({ sale, company, customer, operator, onCl
                   <span className="font-medium">{formatCurrency(payment.amount)}</span>
                 </div>
               ))}
+              {/* Troco */}
+              {(() => {
+                const totalPaid = sale.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+                const change = totalPaid - (sale.total || 0);
+                if (change > 0.01) {
+                  return (
+                    <div className="flex justify-between pt-3 mt-3 border-t-2 border-dashed">
+                      <span className="font-bold text-lg">TROCO:</span>
+                      <span className="font-bold text-lg text-green-600">{formatCurrency(change)}</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           </div>
         )}

@@ -77,9 +77,9 @@ export default function PDVMain() {
     }
   }, [operator?.id, cashRegisterMode]);
 
-  // Atualiza o relogio
+  // Atualiza o relogio a cada minuto (otimizado - antes era 1s)
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 

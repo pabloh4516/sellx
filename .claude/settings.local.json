@@ -8,7 +8,23 @@
       "Bash(find:*)",
       "Bash(dir /s /b \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\")",
       "Bash(dir \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\" /s)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git push:*)",
+      "Bash(dir /s \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\\\\src\")",
+      "Bash(tree:*)",
+      "Bash(for component in WhatsAppIntegration ReportScheduler ServiceOrderForm ServiceOrderPrint OperatorLogin CameraScanner BarcodeScanner QuickCustomerForm KeyboardShortcuts CustomerHistory LoyaltyDisplay OfflineIndicator InstallApp POSLayout MetricCard DataTable)",
+      "Bash(do echo \"=== Checking $component ===\" grep -r \"$component\" \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\\\\src\" --include=\"*.jsx\" --include=\"*.js\")",
+      "Bash(done)",
+      "Bash(for package in \"html5-qrcode\" \"input-otp\" \"jsbarcode\" \"dexie\" \"framer-motion\" \"react-day-picker\" \"react-resizable-panels\" \"next-themes\" \"cmdk\" \"recharts\" \"vaul\" \"vite-plugin-pwa\" \"base44\")",
+      "Bash(do echo \"=== Checking $package ===\" grep -r \"$package\" \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\\\\src\" --include=\"*.jsx\" --include=\"*.js\")",
+      "Bash(ls:*)",
+      "Bash(npm run dev)",
+      "Bash(test:*)",
+      "Bash(for file in \"C:\\\\Users\\\\55319\\\\Desktop\\\\PROJETOS 2026\\\\SELLX EXE\\\\Sellx-Projeto-Limpo\\\\src\\\\components\\\\ui\"/*.jsx)",
+      "Bash(do basename \"$file\")",
+      "Bash(for file in \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\\\\src\\\\components\\\\ui\"/*.jsx)",
+      "Bash(comm:*)"
     ]
   }
 }

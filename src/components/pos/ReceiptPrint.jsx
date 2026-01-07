@@ -122,6 +122,20 @@ export default function ReceiptPrint({ sale, company, customer, operator, onClos
                 <span>{formatCurrency(payment.amount)}</span>
               </div>
             ))}
+            {/* Troco */}
+            {(() => {
+              const totalPaid = sale.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+              const change = totalPaid - (sale.total || 0);
+              if (change > 0.01) {
+                return (
+                  <div className="flex justify-between text-xs mt-2 pt-2 border-t border-dashed font-bold">
+                    <span>TROCO:</span>
+                    <span>{formatCurrency(change)}</span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         )}
 

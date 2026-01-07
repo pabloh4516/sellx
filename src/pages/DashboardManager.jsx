@@ -7,7 +7,8 @@ import {
 } from 'recharts';
 import {
   DollarSign, TrendingUp, Users, ShoppingCart, BarChart3, PieChart as PieChartIcon,
-  AlertTriangle, Award, User, Package, Wallet, ArrowUp, ArrowDown
+  AlertTriangle, Award, User, Package, Wallet, ArrowUp, ArrowDown, Trophy, Medal,
+  Clock, CheckCircle, XCircle, Target, Bell
 } from 'lucide-react';
 import { format, subDays, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -432,33 +433,65 @@ export default function DashboardManager() {
         </CardSection>
       </div>
 
-      {/* Operators Ranking & Alerts */}
+      {/* Operators Ranking & Cash Registers */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CardSection title="Ranking de Operadores/Vendedores" icon={Award}>
-          <ScrollArea className="h-[300px]">
+        <CardSection title="Ranking de Operadores/Vendedores" icon={Trophy}>
+          {/* Top 3 Podium */}
+          {stats.salesByOperator.length >= 3 && (
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {/* 2o lugar */}
+              <div className="flex flex-col items-center p-3 bg-[#C0C0C0]/10 rounded-xl border border-[#C0C0C0]/20">
+                <Medal className="w-6 h-6 text-[#C0C0C0] mb-1" />
+                <span className="text-lg font-bold text-[#C0C0C0]">2o</span>
+                <p className="text-xs font-medium truncate w-full text-center mt-1">{stats.salesByOperator[1]?.name}</p>
+                <p className="text-sm font-bold text-primary">{formatCurrency(stats.salesByOperator[1]?.vendas)}</p>
+              </div>
+              {/* 1o lugar */}
+              <div className="flex flex-col items-center p-3 bg-warning/10 rounded-xl border-2 border-warning -mt-2">
+                <Trophy className="w-7 h-7 text-warning mb-1" />
+                <span className="text-xl font-bold text-warning">1o</span>
+                <p className="text-xs font-medium truncate w-full text-center mt-1">{stats.salesByOperator[0]?.name}</p>
+                <p className="text-lg font-bold text-primary">{formatCurrency(stats.salesByOperator[0]?.vendas)}</p>
+              </div>
+              {/* 3o lugar */}
+              <div className="flex flex-col items-center p-3 bg-[#CD7F32]/10 rounded-xl border border-[#CD7F32]/20">
+                <Medal className="w-6 h-6 text-[#CD7F32] mb-1" />
+                <span className="text-lg font-bold text-[#CD7F32]">3o</span>
+                <p className="text-xs font-medium truncate w-full text-center mt-1">{stats.salesByOperator[2]?.name}</p>
+                <p className="text-sm font-bold text-primary">{formatCurrency(stats.salesByOperator[2]?.vendas)}</p>
+              </div>
+            </div>
+          )}
+
+          <ScrollArea className="h-[200px]">
             <div className="space-y-2">
-              {stats.salesByOperator.map((operator, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
-                      index === 0 ? 'bg-yellow-500/20 text-yellow-600' :
-                      index === 1 ? 'bg-gray-400/20 text-gray-600' :
-                      index === 2 ? 'bg-orange-500/20 text-orange-600' :
-                      'bg-muted text-muted-foreground'
-                    }`}>
-                      {index + 1}
+              {stats.salesByOperator.map((operator, index) => {
+                const avgTicket = operator.quantidade > 0 ? operator.vendas / operator.quantidade : 0;
+                return (
+                  <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                        index === 0 ? 'bg-warning/20 text-warning' :
+                        index === 1 ? 'bg-[#C0C0C0]/20 text-[#C0C0C0]' :
+                        index === 2 ? 'bg-[#CD7F32]/20 text-[#CD7F32]' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{operator.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {operator.quantidade} vendas | Ticket: {formatCurrency(avgTicket)}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-sm">{operator.name}</p>
-                      <p className="text-xs text-muted-foreground">{operator.quantidade} vendas</p>
+                    <div className="text-right">
+                      <p className="font-bold">{formatCurrency(operator.vendas)}</p>
+                      <p className="text-xs text-success">{formatCurrency(operator.lucro)} lucro</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold">{formatCurrency(operator.vendas)}</p>
-                    <p className="text-xs text-success">{formatCurrency(operator.lucro)} lucro</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {stats.salesByOperator.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   <User className="w-12 h-12 mx-auto mb-2 opacity-30" />
@@ -469,6 +502,80 @@ export default function DashboardManager() {
           </ScrollArea>
         </CardSection>
 
+        {/* Caixas Ativos */}
+        <CardSection title="Caixas Ativos" icon={Wallet}>
+          {stats.cashRegisters.length > 0 ? (
+            <div className="space-y-3">
+              {stats.cashRegisters.map((register, index) => {
+                // Calcular vendas do caixa
+                const registerSales = stats.sales.filter(s => s.cash_register_id === register.id);
+                const registerTotal = registerSales.reduce((sum, s) => sum + (s.total || 0), 0);
+                const openingDate = register.opening_date ? new Date(register.opening_date) : new Date();
+                const hoursOpen = Math.floor((new Date() - openingDate) / (1000 * 60 * 60));
+                const minutesOpen = Math.floor(((new Date() - openingDate) / (1000 * 60)) % 60);
+
+                return (
+                  <div key={register.id} className="p-4 bg-success/5 border border-success/20 rounded-xl">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                          <User className="w-5 h-5 text-success" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{register.opened_by || 'Operador'}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {hoursOpen}h {minutesOpen}m aberto
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-success">
+                        <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                        <span className="text-xs font-medium">Ativo</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      <div className="text-center p-2 bg-muted/50 rounded-lg">
+                        <p className="text-xs text-muted-foreground">Inicial</p>
+                        <p className="font-medium text-sm">{formatCurrency(register.opening_balance)}</p>
+                      </div>
+                      <div className="text-center p-2 bg-primary/10 rounded-lg">
+                        <p className="text-xs text-muted-foreground">Vendas</p>
+                        <p className="font-bold text-primary">{formatCurrency(registerTotal)}</p>
+                      </div>
+                      <div className="text-center p-2 bg-muted/50 rounded-lg">
+                        <p className="text-xs text-muted-foreground">Qtd</p>
+                        <p className="font-medium text-sm">{registerSales.length}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Resumo Total */}
+              <div className="p-3 bg-primary/10 rounded-xl border border-primary/20">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Total em Caixas</span>
+                  <span className="font-bold text-primary text-lg">
+                    {formatCurrency(stats.cashRegisters.reduce((sum, r) => {
+                      const rSales = stats.sales.filter(s => s.cash_register_id === r.id);
+                      return sum + rSales.reduce((s, sale) => s + (sale.total || 0), 0);
+                    }, 0))}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <XCircle className="w-12 h-12 mx-auto mb-2 text-destructive opacity-50" />
+              <p className="text-muted-foreground">Nenhum caixa aberto</p>
+              <p className="text-xs text-muted-foreground mt-1">Os operadores precisam abrir seus caixas</p>
+            </div>
+          )}
+        </CardSection>
+      </div>
+
+      {/* Alerts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <CardSection title="Alertas de Estoque" icon={AlertTriangle}>
           <ScrollArea className="h-[300px]">
             <div className="space-y-2">
@@ -494,6 +601,96 @@ export default function DashboardManager() {
                   <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
                   <p>Estoque em dia!</p>
                   <p className="text-sm text-muted-foreground">Nenhum produto com estoque baixo</p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </CardSection>
+
+        {/* Alertas Operacionais */}
+        <CardSection title="Alertas Operacionais" icon={Bell}>
+          <ScrollArea className="h-[300px]">
+            <div className="space-y-2">
+              {/* Alerta de caixas fechados */}
+              {stats.cashRegisters.length === 0 && (
+                <div className="flex items-center gap-3 p-3 bg-warning/10 rounded-lg border border-warning/20">
+                  <div className="w-8 h-8 rounded-lg bg-warning/20 flex items-center justify-center">
+                    <Wallet className="w-4 h-4 text-warning" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Nenhum caixa aberto</p>
+                    <p className="text-xs text-muted-foreground">Os operadores precisam abrir seus caixas para iniciar vendas</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Alerta de operadores sem vendas */}
+              {stats.cashRegisters.filter(r => {
+                const rSales = stats.sales.filter(s => s.cash_register_id === r.id);
+                return rSales.length === 0;
+              }).map(reg => (
+                <div key={reg.id} className="flex items-center gap-3 p-3 bg-warning/10 rounded-lg border border-warning/20">
+                  <div className="w-8 h-8 rounded-lg bg-warning/20 flex items-center justify-center">
+                    <User className="w-4 h-4 text-warning" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{reg.opened_by || 'Operador'} sem vendas</p>
+                    <p className="text-xs text-muted-foreground">Caixa aberto mas nenhuma venda registrada ainda</p>
+                  </div>
+                </div>
+              ))}
+
+              {/* Alerta de produtos sem estoque */}
+              {stats.products.filter(p => p.stock_quantity === 0 && p.is_active !== false).length > 0 && (
+                <div className="flex items-center gap-3 p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                  <div className="w-8 h-8 rounded-lg bg-destructive/20 flex items-center justify-center">
+                    <XCircle className="w-4 h-4 text-destructive" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">
+                      {stats.products.filter(p => p.stock_quantity === 0 && p.is_active !== false).length} produtos sem estoque
+                    </p>
+                    <p className="text-xs text-muted-foreground">Produtos esgotados que precisam de reposicao urgente</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Alerta de ticket medio baixo */}
+              {avgTicket > 0 && avgTicket < 50 && (
+                <div className="flex items-center gap-3 p-3 bg-info/10 rounded-lg border border-info/20">
+                  <div className="w-8 h-8 rounded-lg bg-info/20 flex items-center justify-center">
+                    <Target className="w-4 h-4 text-info" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Ticket medio abaixo de R$ 50</p>
+                    <p className="text-xs text-muted-foreground">Considere estrategias de upselling para aumentar o valor medio</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Alerta de margem baixa */}
+              {totalSales > 0 && (totalProfit / totalSales * 100) < 15 && (
+                <div className="flex items-center gap-3 p-3 bg-warning/10 rounded-lg border border-warning/20">
+                  <div className="w-8 h-8 rounded-lg bg-warning/20 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-warning" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Margem de lucro abaixo de 15%</p>
+                    <p className="text-xs text-muted-foreground">Revise precos e custos para melhorar a rentabilidade</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Sem alertas */}
+              {stats.cashRegisters.length > 0 &&
+               stats.cashRegisters.filter(r => stats.sales.filter(s => s.cash_register_id === r.id).length === 0).length === 0 &&
+               stats.products.filter(p => p.stock_quantity === 0 && p.is_active !== false).length === 0 &&
+               (avgTicket === 0 || avgTicket >= 50) &&
+               (totalSales === 0 || (totalProfit / totalSales * 100) >= 15) && (
+                <div className="text-center py-8 text-success">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>Tudo funcionando bem!</p>
+                  <p className="text-sm text-muted-foreground">Nenhum alerta operacional no momento</p>
                 </div>
               )}
             </div>

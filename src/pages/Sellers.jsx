@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Plus, Search, Edit, Trash2, UserCircle, Phone, Mail, MoreVertical, Users, Percent, Shield,
-  Target, DollarSign, Clock, History, TrendingUp, Ban, Check, X, Calendar, Award, Lock
+  Target, DollarSign, Clock, History, TrendingUp, Ban, Check, X, Calendar, Award, Lock, Trophy, Medal
 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -135,6 +136,7 @@ const initialFormData = {
 
 export default function Sellers() {
   const [sellers, setSellers] = useState([]);
+  const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -142,6 +144,7 @@ export default function Sellers() {
   const [formData, setFormData] = useState(initialFormData);
   const [activeTab, setActiveTab] = useState('dados');
   const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState('ranking'); // 'ranking' or 'list'
 
   useEffect(() => {
     loadSellers();
@@ -149,10 +152,13 @@ export default function Sellers() {
 
   const loadSellers = async () => {
     try {
-      const [profilesData, sellersData] = await Promise.all([
+      const [profilesData, sellersData, salesData] = await Promise.all([
         base44.entities.Profile.list('-created_at'),
-        base44.entities.Seller.list('-created_date').catch(() => [])
+        base44.entities.Seller.list('-created_date').catch(() => []),
+        base44.entities.Sale.list('-sale_date', { limit: 1000 }).catch(() => [])
       ]);
+
+      setSales(salesData);
 
       const mergedData = profilesData.map(profile => {
         const linkedSeller = sellersData.find(s =>
@@ -390,6 +396,82 @@ export default function Sellers() {
     : 0;
   const totalDailyGoal = sellers.filter(s => s.is_active).reduce((sum, s) => sum + (s.daily_goal || 0), 0);
 
+  // Calcular performance de cada vendedor
+  const sellerPerformance = useMemo(() => {
+    const today = new Date();
+    const dayStart = startOfDay(today);
+    const dayEnd = endOfDay(today);
+    const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+    const monthStart = startOfMonth(today);
+    const monthEnd = endOfMonth(today);
+
+    const performance = {};
+
+    sellers.forEach(seller => {
+      // Filtrar vendas do vendedor (por seller_id ou operator_id)
+      const sellerSales = sales.filter(s =>
+        s.seller_id === seller.id ||
+        s.seller_id === seller.seller_id ||
+        s.operator_id === seller.id ||
+        s.employee_id === seller.id
+      );
+
+      const todaySales = sellerSales.filter(s => {
+        const saleDate = new Date(s.sale_date || s.created_date);
+        return isWithinInterval(saleDate, { start: dayStart, end: dayEnd });
+      });
+
+      const weekSales = sellerSales.filter(s => {
+        const saleDate = new Date(s.sale_date || s.created_date);
+        return isWithinInterval(saleDate, { start: weekStart, end: weekEnd });
+      });
+
+      const monthSales = sellerSales.filter(s => {
+        const saleDate = new Date(s.sale_date || s.created_date);
+        return isWithinInterval(saleDate, { start: monthStart, end: monthEnd });
+      });
+
+      const dailyTotal = todaySales.reduce((sum, s) => sum + (s.total || 0), 0);
+      const weeklyTotal = weekSales.reduce((sum, s) => sum + (s.total || 0), 0);
+      const monthlyTotal = monthSales.reduce((sum, s) => sum + (s.total || 0), 0);
+
+      const dailyGoal = seller.daily_goal || 0;
+      const weeklyGoal = seller.weekly_goal || 0;
+      const monthlyGoal = seller.monthly_goal || 0;
+
+      performance[seller.id] = {
+        dailyTotal,
+        weeklyTotal,
+        monthlyTotal,
+        dailyGoal,
+        weeklyGoal,
+        monthlyGoal,
+        dailyProgress: dailyGoal > 0 ? Math.min((dailyTotal / dailyGoal) * 100, 100) : 0,
+        weeklyProgress: weeklyGoal > 0 ? Math.min((weeklyTotal / weeklyGoal) * 100, 100) : 0,
+        monthlyProgress: monthlyGoal > 0 ? Math.min((monthlyTotal / monthlyGoal) * 100, 100) : 0,
+        dailyAchieved: dailyGoal > 0 && dailyTotal >= dailyGoal,
+        weeklyAchieved: weeklyGoal > 0 && weeklyTotal >= weeklyGoal,
+        monthlyAchieved: monthlyGoal > 0 && monthlyTotal >= monthlyGoal,
+        salesCount: monthSales.length,
+        avgTicket: monthSales.length > 0 ? monthlyTotal / monthSales.length : 0
+      };
+    });
+
+    return performance;
+  }, [sellers, sales]);
+
+  // Ranking de vendedores (por vendas do mes)
+  const sellerRanking = useMemo(() => {
+    return sellers
+      .filter(s => s.is_active !== false)
+      .map(s => ({
+        ...s,
+        ...sellerPerformance[s.id]
+      }))
+      .sort((a, b) => (b.monthlyTotal || 0) - (a.monthlyTotal || 0));
+  }, [sellers, sellerPerformance]);
+
   const columns = [
     {
       key: 'name',
@@ -545,27 +627,236 @@ export default function Sellers() {
         />
       </Grid>
 
-      {/* Busca */}
-      <CardSection>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, email ou CPF..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </CardSection>
+      {/* Toggle de visualizacao */}
+      <div className="flex items-center gap-2">
+        <Button
+          variant={viewMode === 'ranking' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setViewMode('ranking')}
+          className="gap-2"
+        >
+          <Trophy className="w-4 h-4" />
+          Ranking
+        </Button>
+        <Button
+          variant={viewMode === 'list' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setViewMode('list')}
+          className="gap-2"
+        >
+          <Users className="w-4 h-4" />
+          Lista
+        </Button>
+      </div>
 
-      {/* Tabela */}
-      <CardSection noPadding>
-        <DataTable
-          data={filteredSellers}
-          columns={columns}
-          emptyMessage="Nenhum funcionario encontrado"
-        />
-      </CardSection>
+      {/* Ranking Visual */}
+      {viewMode === 'ranking' && (
+        <div className="space-y-4">
+          {/* Top 3 Podium */}
+          {sellerRanking.length >= 3 && (
+            <CardSection>
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-warning" />
+                Top Vendedores do Mes
+              </h3>
+              <div className="grid grid-cols-3 gap-4">
+                {/* 2o Lugar */}
+                <div className="flex flex-col items-center p-4 bg-muted/30 rounded-xl border border-border order-1">
+                  <div className="w-12 h-12 rounded-full bg-[#C0C0C0]/20 flex items-center justify-center mb-2">
+                    <Medal className="w-6 h-6 text-[#C0C0C0]" />
+                  </div>
+                  <span className="text-2xl font-bold text-[#C0C0C0]">2o</span>
+                  <p className="font-semibold mt-2 text-center truncate w-full">{sellerRanking[1]?.name}</p>
+                  <p className="text-lg font-bold text-primary">{formatCurrency(sellerRanking[1]?.monthlyTotal || 0)}</p>
+                  <p className="text-xs text-muted-foreground">{sellerRanking[1]?.salesCount || 0} vendas</p>
+                </div>
+
+                {/* 1o Lugar */}
+                <div className="flex flex-col items-center p-4 bg-warning/10 rounded-xl border-2 border-warning order-0 md:order-1 -mt-4">
+                  <div className="w-14 h-14 rounded-full bg-warning/20 flex items-center justify-center mb-2">
+                    <Trophy className="w-7 h-7 text-warning" />
+                  </div>
+                  <span className="text-3xl font-bold text-warning">1o</span>
+                  <p className="font-semibold mt-2 text-center truncate w-full">{sellerRanking[0]?.name}</p>
+                  <p className="text-xl font-bold text-primary">{formatCurrency(sellerRanking[0]?.monthlyTotal || 0)}</p>
+                  <p className="text-xs text-muted-foreground">{sellerRanking[0]?.salesCount || 0} vendas</p>
+                </div>
+
+                {/* 3o Lugar */}
+                <div className="flex flex-col items-center p-4 bg-muted/30 rounded-xl border border-border order-2">
+                  <div className="w-12 h-12 rounded-full bg-[#CD7F32]/20 flex items-center justify-center mb-2">
+                    <Medal className="w-6 h-6 text-[#CD7F32]" />
+                  </div>
+                  <span className="text-2xl font-bold text-[#CD7F32]">3o</span>
+                  <p className="font-semibold mt-2 text-center truncate w-full">{sellerRanking[2]?.name}</p>
+                  <p className="text-lg font-bold text-primary">{formatCurrency(sellerRanking[2]?.monthlyTotal || 0)}</p>
+                  <p className="text-xs text-muted-foreground">{sellerRanking[2]?.salesCount || 0} vendas</p>
+                </div>
+              </div>
+            </CardSection>
+          )}
+
+          {/* Lista de Ranking com Metas */}
+          <CardSection>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Target className="w-5 h-5 text-primary" />
+              Meta vs Realizado - {format(new Date(), 'MMMM yyyy', { locale: ptBR })}
+            </h3>
+            <div className="space-y-4">
+              {sellerRanking.map((seller, index) => (
+                <div key={seller.id} className="p-4 bg-card border border-border rounded-xl">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                        index === 0 ? 'bg-warning/20 text-warning' :
+                        index === 1 ? 'bg-[#C0C0C0]/20 text-[#C0C0C0]' :
+                        index === 2 ? 'bg-[#CD7F32]/20 text-[#CD7F32]' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {index + 1}
+                      </span>
+                      <div>
+                        <p className="font-semibold">{seller.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {seller.salesCount} vendas | Ticket medio: {formatCurrency(seller.avgTicket)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold">{formatCurrency(seller.monthlyTotal)}</p>
+                      {seller.monthlyGoal > 0 && (
+                        <p className={`text-xs ${seller.monthlyAchieved ? 'text-success' : 'text-muted-foreground'}`}>
+                          Meta: {formatCurrency(seller.monthlyGoal)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Barras de Progresso */}
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* Meta Diaria */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">Hoje</span>
+                        <span className={seller.dailyAchieved ? 'text-success font-medium' : ''}>
+                          {formatCurrency(seller.dailyTotal)}
+                          {seller.dailyGoal > 0 && ` / ${formatCurrency(seller.dailyGoal)}`}
+                        </span>
+                      </div>
+                      {seller.dailyGoal > 0 ? (
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${seller.dailyAchieved ? 'bg-success' : 'bg-primary'}`}
+                            style={{ width: `${seller.dailyProgress}%` }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-2 bg-muted rounded-full" />
+                      )}
+                    </div>
+
+                    {/* Meta Semanal */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">Semana</span>
+                        <span className={seller.weeklyAchieved ? 'text-success font-medium' : ''}>
+                          {formatCurrency(seller.weeklyTotal)}
+                          {seller.weeklyGoal > 0 && ` / ${formatCurrency(seller.weeklyGoal)}`}
+                        </span>
+                      </div>
+                      {seller.weeklyGoal > 0 ? (
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${seller.weeklyAchieved ? 'bg-success' : 'bg-primary'}`}
+                            style={{ width: `${seller.weeklyProgress}%` }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-2 bg-muted rounded-full" />
+                      )}
+                    </div>
+
+                    {/* Meta Mensal */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">Mes</span>
+                        <span className={seller.monthlyAchieved ? 'text-success font-medium' : ''}>
+                          {formatCurrency(seller.monthlyTotal)}
+                          {seller.monthlyGoal > 0 && ` / ${formatCurrency(seller.monthlyGoal)}`}
+                        </span>
+                      </div>
+                      {seller.monthlyGoal > 0 ? (
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${seller.monthlyAchieved ? 'bg-success' : 'bg-primary'}`}
+                            style={{ width: `${seller.monthlyProgress}%` }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-2 bg-muted rounded-full" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Indicadores de Meta Batida */}
+                  {(seller.dailyAchieved || seller.weeklyAchieved || seller.monthlyAchieved) && (
+                    <div className="flex gap-2 mt-3">
+                      {seller.dailyAchieved && (
+                        <span className="px-2 py-0.5 bg-success/10 text-success text-xs rounded-full flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Meta diaria
+                        </span>
+                      )}
+                      {seller.weeklyAchieved && (
+                        <span className="px-2 py-0.5 bg-success/10 text-success text-xs rounded-full flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Meta semanal
+                        </span>
+                      )}
+                      {seller.monthlyAchieved && (
+                        <span className="px-2 py-0.5 bg-success/10 text-success text-xs rounded-full flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Meta mensal
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {sellerRanking.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum vendedor ativo encontrado
+                </div>
+              )}
+            </div>
+          </CardSection>
+        </div>
+      )}
+
+      {/* Modo Lista */}
+      {viewMode === 'list' && (
+        <>
+          {/* Busca */}
+          <CardSection>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, email ou CPF..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </CardSection>
+
+          {/* Tabela */}
+          <CardSection noPadding>
+            <DataTable
+              data={filteredSellers}
+              columns={columns}
+              emptyMessage="Nenhum funcionario encontrado"
+            />
+          </CardSection>
+        </>
+      )}
 
       {/* Form Dialog com Abas */}
       <Dialog open={showForm} onOpenChange={setShowForm}>

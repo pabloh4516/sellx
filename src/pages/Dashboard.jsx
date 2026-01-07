@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -45,10 +45,27 @@ export default function Dashboard() {
     todayCount: 0,
     monthSales: 0,
     monthCount: 0,
+    // Comparativos - ontem
+    yesterdaySales: 0,
+    yesterdayCount: 0,
+    lastMonthSales: 0,
+    lastMonthCount: 0,
+    // Variações percentuais
+    salesVariation: 0,
+    countVariation: 0,
+    monthVariation: 0,
+    ticketVariation: 0,
+    // Métricas de operadores (para gerentes)
+    operatorStats: [],
+    totalCancellations: 0,
+    totalReturns: 0,
+    avgSaleTime: 0,
+    // Originais
     pendingReceivables: 0,
     pendingPayables: 0,
     lowStockProducts: [],
     expiringProducts: [],
+    zeroStockProducts: [],
     overdueCustomers: [],
     recentSales: [],
     salesByCategory: [],
@@ -60,7 +77,9 @@ export default function Dashboard() {
     topProducts: [],
     hourlyDistribution: [],
     profit: 0,
-    todayProfit: 0
+    todayProfit: 0,
+    yesterdayProfit: 0,
+    profitVariation: 0
   });
   const [loading, setLoading, isTimeout] = useSafeLoading(true, 25000); // 25s timeout (mais dados)
   const [refreshing, setRefreshing] = useState(false);
@@ -130,10 +149,16 @@ export default function Dashboard() {
       console.log('[Dashboard] Carregando dados frescos... (tentativa', retryCount + 1, ')');
 
       const today = new Date();
+      const yesterday = subDays(today, 1);
       const startToday = startOfDay(today).toISOString();
       const endToday = endOfDay(today).toISOString();
+      const startYesterday = startOfDay(yesterday).toISOString();
+      const endYesterday = endOfDay(yesterday).toISOString();
       const startMonth = startOfMonth(today).toISOString();
       const endMonth = endOfMonth(today).toISOString();
+      const lastMonth = subDays(startOfMonth(today), 1);
+      const startLastMonth = startOfMonth(lastMonth).toISOString();
+      const endLastMonth = endOfMonth(lastMonth).toISOString();
       const sevenDaysAgo = subDays(today, 7).toISOString();
 
       // Queries otimizadas - buscar apenas dados necessarios
@@ -176,7 +201,8 @@ export default function Dashboard() {
         lowStockProducts,
         receivablesData,
         payablesData,
-        operatorsData
+        operatorsData,
+        sellersData
       ] = await Promise.all([
         // Produtos com estoque baixo - limite menor
         base44.entities.Product.list('-stock_quantity', { limit: 100 }),
@@ -185,7 +211,9 @@ export default function Dashboard() {
         // Despesas pendentes (limite menor)
         base44.entities.Expense.filter({ status: 'pendente' }, { limit: 50 }),
         // Operadores para mostrar nome nas vendas (apenas se admin)
-        canViewAllSales ? base44.entities.Profile.list() : Promise.resolve([])
+        canViewAllSales ? base44.entities.Profile.list() : Promise.resolve([]),
+        // Vendedores para mostrar nome nas vendas (apenas se admin)
+        canViewAllSales ? base44.entities.Seller.list().catch(() => []) : Promise.resolve([])
       ]);
 
       // Usar os dados carregados
@@ -211,11 +239,85 @@ export default function Dashboard() {
         new Date(s.sale_date || s.created_at) <= new Date(endToday)
       );
 
+      // Yesterday's sales (para comparativo)
+      const yesterdaySalesData = sales.filter(s =>
+        new Date(s.sale_date || s.created_at) >= new Date(startYesterday) &&
+        new Date(s.sale_date || s.created_at) <= new Date(endYesterday)
+      );
+
       // Month sales
       const monthSales = sales.filter(s =>
         new Date(s.sale_date || s.created_at) >= new Date(startMonth) &&
         new Date(s.sale_date || s.created_at) <= new Date(endMonth)
       );
+
+      // Last month sales (para comparativo)
+      const lastMonthSalesData = sales.filter(s =>
+        new Date(s.sale_date || s.created_at) >= new Date(startLastMonth) &&
+        new Date(s.sale_date || s.created_at) <= new Date(endLastMonth)
+      );
+
+      // Calcular totais de ontem
+      const yesterdaySalesTotal = yesterdaySalesData.reduce((sum, s) => sum + (s.total || 0), 0);
+      const yesterdayCountTotal = yesterdaySalesData.length;
+      const yesterdayProfitTotal = yesterdaySalesData.reduce((sum, s) => sum + (s.profit || 0), 0);
+
+      // Calcular totais do mês passado
+      const lastMonthSalesTotal = lastMonthSalesData.reduce((sum, s) => sum + (s.total || 0), 0);
+
+      // Calcular variações percentuais
+      const calcVariation = (current, previous) => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return ((current - previous) / previous) * 100;
+      };
+
+      // Métricas de operadores (para gerentes/admins)
+      const operatorStatsMap = {};
+      if (canViewAllSales) {
+        // Criar mapa de operadores para lookup rápido
+        const operatorsMap = {};
+        (operatorsData || []).forEach(op => {
+          operatorsMap[op.id] = op.full_name || op.name || 'Operador';
+        });
+        // Adicionar vendedores ao mapa
+        (sellersData || []).forEach(seller => {
+          operatorsMap[seller.id] = seller.name || seller.full_name || 'Vendedor';
+          if (seller.seller_id) {
+            operatorsMap[seller.seller_id] = seller.name || seller.full_name || 'Vendedor';
+          }
+        });
+
+        todaySales.forEach(sale => {
+          const opId = sale.operator_id || sale.seller_id || 'unknown';
+          if (!operatorStatsMap[opId]) {
+            // Buscar nome do operador: primeiro na venda, depois no mapa de perfis
+            const operatorName = sale.operator_name ||
+                                 sale.seller_name ||
+                                 operatorsMap[opId] ||
+                                 operatorsMap[sale.operator_id] ||
+                                 operatorsMap[sale.seller_id] ||
+                                 'Operador';
+            operatorStatsMap[opId] = {
+              id: opId,
+              name: operatorName,
+              sales: 0,
+              total: 0,
+              items: 0,
+              cancellations: 0,
+              avgTicket: 0
+            };
+          }
+          operatorStatsMap[opId].sales++;
+          operatorStatsMap[opId].total += sale.total || 0;
+          operatorStatsMap[opId].items += sale.items?.length || 0;
+        });
+
+        // Calcular ticket médio por operador
+        Object.values(operatorStatsMap).forEach(op => {
+          op.avgTicket = op.sales > 0 ? op.total / op.sales : 0;
+        });
+      }
+      const operatorStats = Object.values(operatorStatsMap).sort((a, b) => b.total - a.total);
 
       // Products sold today
       const productsSold = todaySales.reduce((sum, s) => {
@@ -224,7 +326,12 @@ export default function Dashboard() {
 
       // Low stock products
       const lowStock = products.filter(p =>
-        p.min_stock && p.stock_quantity <= p.min_stock && p.is_active !== false
+        p.min_stock && p.stock_quantity <= p.min_stock && p.stock_quantity > 0 && p.is_active !== false
+      ).slice(0, 5);
+
+      // Zero stock products (crítico)
+      const zeroStock = products.filter(p =>
+        p.stock_quantity === 0 && p.is_active !== false
       ).slice(0, 5);
 
       // Expiring products (next 30 days)
@@ -334,27 +441,52 @@ export default function Dashboard() {
         };
       });
 
+      // Calcular valores de hoje e variações
+      const todaySalesTotal = todaySales.reduce((sum, s) => sum + (s.total || 0), 0);
+      const monthSalesTotal = monthSales.reduce((sum, s) => sum + (s.total || 0), 0);
+      const todayTicket = todaySales.length > 0 ? todaySalesTotal / todaySales.length : 0;
+      const yesterdayTicket = yesterdayCountTotal > 0 ? yesterdaySalesTotal / yesterdayCountTotal : 0;
+
       const newStats = {
-        todaySales: todaySales.reduce((sum, s) => sum + (s.total || 0), 0),
+        todaySales: todaySalesTotal,
         todayCount: todaySales.length,
-        monthSales: monthSales.reduce((sum, s) => sum + (s.total || 0), 0),
+        monthSales: monthSalesTotal,
         monthCount: monthSales.length,
+        // Comparativos
+        yesterdaySales: yesterdaySalesTotal,
+        yesterdayCount: yesterdayCountTotal,
+        lastMonthSales: lastMonthSalesTotal,
+        lastMonthCount: lastMonthSalesData.length,
+        // Variações percentuais
+        salesVariation: calcVariation(todaySalesTotal, yesterdaySalesTotal),
+        countVariation: calcVariation(todaySales.length, yesterdayCountTotal),
+        monthVariation: calcVariation(monthSalesTotal, lastMonthSalesTotal),
+        ticketVariation: calcVariation(todayTicket, yesterdayTicket),
+        // Métricas de operadores
+        operatorStats,
+        // Financeiro
         pendingReceivables: receivables.reduce((sum, r) => sum + (r.amount || 0), 0),
         pendingReceivablesCount: receivables.length,
         pendingPayables: payables.reduce((sum, p) => sum + (p.amount || 0), 0),
         pendingPayablesCount: payables.length,
+        // Alertas
         lowStockProducts: lowStock,
+        zeroStockProducts: zeroStock,
         expiringProducts: expiring,
         overdueCustomers: overdueCustomersList,
+        // Vendas
         recentSales: recentSalesWithCustomer,
         dailySales: dailyData,
         totalProducts: products.length,
-        totalCustomers: customersCount || 0, // Usar contagem otimizada
+        totalCustomers: customersCount || 0,
         productsSold,
         salesByPaymentMethod,
         topProducts,
         hourlyDistribution: hourlyData,
+        // Lucro
         todayProfit,
+        yesterdayProfit: yesterdayProfitTotal,
+        profitVariation: calcVariation(todayProfit, yesterdayProfitTotal),
         profit: monthProfit
       };
 
@@ -380,10 +512,29 @@ export default function Dashboard() {
     }).format(value || 0);
   };
 
-  // Goals calculation
+  // Goals calculation - memoizado para evitar recalculos
   const dailyGoal = 5000;
   const monthlyGoal = 100000;
-  const ticketMedio = stats.todayCount > 0 ? stats.todaySales / stats.todayCount : 0;
+  const ticketMedio = useMemo(() =>
+    stats.todayCount > 0 ? stats.todaySales / stats.todayCount : 0,
+    [stats.todayCount, stats.todaySales]
+  );
+
+  // Componente para mostrar variação com cor e seta
+  const TrendIndicator = ({ value, suffix = '%', invertColors = false }) => {
+    if (value === 0 || isNaN(value)) return null;
+    const isPositive = value > 0;
+    const color = invertColors
+      ? (isPositive ? 'text-destructive' : 'text-success')
+      : (isPositive ? 'text-success' : 'text-destructive');
+    const Icon = isPositive ? TrendingUp : TrendingDown;
+    return (
+      <span className={`flex items-center gap-1 text-xs font-medium ${color}`}>
+        <Icon className="w-3 h-3" />
+        {isPositive ? '+' : ''}{value.toFixed(1)}{suffix}
+      </span>
+    );
+  };
 
   // Colors for pie chart
   const CHART_COLORS = [
@@ -535,26 +686,39 @@ export default function Dashboard() {
 
       {/* Main Metrics - Sellx Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Highlight Principal */}
+        {/* Highlight Principal - Faturamento com comparativo */}
         <div className="lg:col-span-1">
-          <HighlightMetric
-            label="Faturamento Hoje"
-            value={formatCurrency(stats.todaySales)}
-            subtitle={`${stats.todayCount} vendas realizadas`}
-            icon={DollarSign}
-            trend={stats.todayCount > 0 ? 12 : 0}
-          />
+          <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 rounded-2xl p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-primary" />
+              </div>
+              <TrendIndicator value={stats.salesVariation} />
+            </div>
+            <p className="text-sm text-muted-foreground mb-1">Faturamento Hoje</p>
+            <p className="text-3xl font-bold text-foreground mb-2">{formatCurrency(stats.todaySales)}</p>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{stats.todayCount} vendas realizadas</span>
+              <span>Ontem: {formatCurrency(stats.yesterdaySales)}</span>
+            </div>
+          </div>
         </div>
 
         {/* Secondary Metrics */}
         <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <MetricCard
-            label="Vendas no Mes"
-            value={formatCurrency(stats.monthSales)}
-            icon={BarChart3}
-            variant="success"
-            trend={{ value: 8, label: 'vs mes anterior' }}
-          />
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-success" />
+              </div>
+              <TrendIndicator value={stats.monthVariation} />
+            </div>
+            <p className="text-xs text-muted-foreground mb-1">Vendas no Mes</p>
+            <p className="text-xl font-bold">{formatCurrency(stats.monthSales)}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Mes anterior: {formatCurrency(stats.lastMonthSales)}
+            </p>
+          </div>
           {canViewAllSales ? (
             <>
               <MetricCard
@@ -702,17 +866,36 @@ export default function Dashboard() {
           title="Alertas"
           icon={AlertTriangle}
         >
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[400px] overflow-y-auto">
+            {/* Estoque Zerado - Crítico */}
+            {stats.zeroStockProducts?.length > 0 && (
+              <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-3">
+                <p className="text-xs font-semibold text-destructive uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Estoque Zerado ({stats.zeroStockProducts.length})
+                </p>
+                <div className="space-y-1">
+                  {stats.zeroStockProducts.map(product => (
+                    <div key={product.id} className="flex items-center justify-between py-1.5">
+                      <span className="text-sm text-foreground truncate">{product.name}</span>
+                      <StatusBadge status="danger" label="0 un" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Estoque Baixo */}
             {stats.lowStockProducts.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Estoque Baixo
+                <p className="text-xs font-semibold text-warning uppercase tracking-wider mb-2">
+                  Estoque Baixo ({stats.lowStockProducts.length})
                 </p>
                 <div className="space-y-2">
                   {stats.lowStockProducts.map(product => (
                     <div key={product.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                       <span className="text-sm text-foreground truncate">{product.name}</span>
-                      <StatusBadge status="danger" label={`${product.stock_quantity} un`} />
+                      <StatusBadge status="warning" label={`${product.stock_quantity} un`} />
                     </div>
                   ))}
                 </div>
@@ -902,6 +1085,38 @@ export default function Dashboard() {
           )}
         </CardSection>
       </div>
+
+      {/* Performance de Operadores - Apenas para gerentes/admins */}
+      {canViewAllSales && stats.operatorStats.length > 0 && (
+        <CardSection
+          title="Performance dos Operadores (Hoje)"
+          icon={Users}
+        >
+          <div className="space-y-3">
+            {stats.operatorStats.slice(0, 5).map((op, index) => (
+              <div key={op.id} className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  index === 0 ? 'bg-warning text-warning-foreground' :
+                  index === 1 ? 'bg-muted text-muted-foreground' :
+                  index === 2 ? 'bg-orange-200 text-orange-800' :
+                  'bg-muted/50 text-muted-foreground'
+                }`}>
+                  {index + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{op.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {op.sales} vendas • Ticket medio: {formatCurrency(op.avgTicket)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-lg">{formatCurrency(op.total)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardSection>
+      )}
 
       {/* Recent Sales Table */}
       <Section

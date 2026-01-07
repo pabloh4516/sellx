@@ -879,38 +879,42 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center animate-pulse">
+            <ShoppingCart className="w-8 h-8 text-primary-foreground" />
+          </div>
+          <p className="text-muted-foreground font-medium">Carregando PDV...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-background p-2">
-      <CardSection className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-          <div className="flex items-center gap-3">
+    <div ref={containerRef} className="min-h-screen bg-background">
+      {/* Header fixo */}
+      <header className="sticky top-0 z-40 bg-card border-b border-border shadow-sm">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
             {company?.logo_url && (
-              <img src={company.logo_url} alt="Logo" className="h-12 object-contain" />
+              <img src={company.logo_url} alt="Logo" className="h-8 sm:h-10 object-contain hidden sm:block" />
             )}
-            <div>
-              <h1 className="text-2xl font-semibold text-foreground">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">
                 PDV Rapido
               </h1>
-              <p className="text-xs text-muted-foreground font-medium">
-                <span className="text-success">●</span> {format(currentTime, "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
-                {selectedCustomer && <span className="ml-2">| Cliente: <strong>{selectedCustomer.name}</strong></span>}
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                <span className="text-success">●</span> {format(currentTime, "dd/MM HH:mm", { locale: ptBR })}
+                {selectedCustomer && <span className="ml-1 sm:ml-2">| {selectedCustomer.name}</span>}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            {/* Botao para cadastrar cliente */}
+          <div className="flex items-center gap-1 sm:gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowQuickCustomerForm(true)}
-              className="hidden md:flex"
+              className="hidden lg:flex h-9"
               title="Cadastrar novo cliente (F4)"
             >
               <UserPlus className="w-4 h-4 mr-2" />
@@ -920,7 +924,7 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
               variant="outline"
               size="icon"
               onClick={() => setShowQuickCustomerForm(true)}
-              className="md:hidden"
+              className="lg:hidden h-9 w-9"
               title="Cadastrar novo cliente"
             >
               <UserPlus className="w-4 h-4" />
@@ -928,34 +932,38 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
             {onModeChange && (
               <PDVModeToggle mode={currentMode} onModeChange={(mode) => handleExitPDV(mode)} />
             )}
-            <Button variant="outline" size="icon" onClick={toggleFullscreen} title={isFullscreen ? "Sair da tela cheia (F11)" : "Tela cheia (F11)"}>
+            <Button variant="outline" size="icon" onClick={toggleFullscreen} className="h-9 w-9" title={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}>
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </Button>
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={() => handleExitPDV('detailed')}
-              className="text-muted-foreground hover:text-foreground"
+              className="h-9 w-9 text-muted-foreground hover:text-foreground"
               title="Sair do PDV"
             >
               <LogOut className="w-4 h-4" />
             </Button>
-            <div className="text-right">
-              <div className="text-3xl font-semibold text-foreground tabular-nums">
+            <div className="text-right pl-2 border-l border-border hidden sm:block">
+              <div className="text-xl font-semibold text-foreground tabular-nums">
                 {format(currentTime, 'HH:mm:ss')}
               </div>
             </div>
           </div>
         </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto p-3 sm:p-4">
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Side - Input Fields */}
-          <div className="lg:col-span-7 space-y-4">
+          <div className="lg:col-span-7 space-y-3">
             {/* Barcode Input */}
-            <div className="bg-muted/50 p-4 rounded-xl border border-border relative">
-              <Label className="text-sm font-medium mb-2 block text-foreground flex items-center gap-2">
-                <Package className="w-4 h-4 text-muted-foreground" />
+            <div className="bg-card p-3 sm:p-4 rounded-xl border border-border relative">
+              <Label className="text-xs sm:text-sm font-medium mb-2 block text-muted-foreground flex items-center gap-2">
+                <Package className="w-4 h-4" />
                 Codigo de Barras / Produto
               </Label>
               <div className="relative">
@@ -969,8 +977,8 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
                   onKeyDown={handleBarcodeSearch}
                   onFocus={() => barcodeInput.length >= 2 && setShowProductSearch(true)}
                   onBlur={() => setTimeout(() => setShowProductSearch(false), 200)}
-                  className="text-3xl h-16 text-center font-semibold"
-                  placeholder="ESCANEAR OU DIGITE..."
+                  className="text-xl sm:text-2xl h-12 sm:h-14 text-center font-semibold"
+                  placeholder="Escanear ou digitar..."
                   autoFocus
                 />
 
@@ -1022,25 +1030,25 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
                   </div>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-2 text-center">Digite para buscar | ENTER para adicionar | F2 para focar</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 text-center">Digite para buscar | ENTER para adicionar</p>
             </div>
 
             {/* Quantity and Unit Price */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-muted/50 p-4 rounded-xl border border-border">
-                <Label className="text-sm font-medium mb-2 block text-foreground">Quantidade</Label>
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div className="bg-card p-3 rounded-xl border border-border">
+                <Label className="text-xs sm:text-sm font-medium mb-2 block text-muted-foreground">Quantidade</Label>
                 <Input
                   type="number"
                   step="0.001"
                   value={quantity}
                   onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
-                  className="text-3xl h-14 text-center font-semibold"
+                  className="text-xl sm:text-2xl h-10 sm:h-12 text-center font-semibold"
                 />
               </div>
 
-              <div className="bg-muted/50 p-4 rounded-xl border border-border">
-                <Label className="text-sm font-medium mb-2 block text-foreground">Preco Unitario</Label>
-                <div className="text-3xl h-14 flex items-center justify-center font-semibold text-foreground bg-background rounded-lg border border-border tabular-nums">
+              <div className="bg-card p-3 rounded-xl border border-border">
+                <Label className="text-xs sm:text-sm font-medium mb-2 block text-muted-foreground">Preco Unitario</Label>
+                <div className="text-xl sm:text-2xl h-10 sm:h-12 flex items-center justify-center font-semibold text-foreground bg-muted/50 rounded-lg border border-border tabular-nums">
                   {cart.length > 0 ? formatCurrency(cart[cart.length - 1].unit_price) : 'R$ 0,00'}
                 </div>
               </div>
@@ -1134,17 +1142,17 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
           <div className="lg:col-span-5 space-y-3">
             {/* Totals */}
             <div className="space-y-2">
-              <div className="bg-primary p-4 rounded-xl">
-                <p className="text-xs text-primary-foreground/70 mb-1 font-medium uppercase tracking-wide">Total da Venda</p>
-                <p className="text-4xl font-semibold text-primary-foreground tabular-nums">
+              <div className="bg-gradient-to-br from-primary to-primary/90 p-3 sm:p-4 rounded-xl shadow-lg">
+                <p className="text-[10px] sm:text-xs text-primary-foreground/80 mb-1 font-medium uppercase tracking-wide">Total da Venda</p>
+                <p className="text-2xl sm:text-3xl font-bold text-primary-foreground tabular-nums">
                   {formatCurrency(calculateTotal())}
                 </p>
               </div>
 
               {payments.length > 0 && (
                 <div className="bg-card p-3 rounded-xl border border-border">
-                  <p className="text-xs text-muted-foreground mb-1 font-medium uppercase tracking-wide">Recebido</p>
-                  <p className="text-2xl font-semibold text-success tabular-nums">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mb-1 font-medium uppercase tracking-wide">Recebido</p>
+                  <p className="text-xl sm:text-2xl font-semibold text-success tabular-nums">
                     {formatCurrency(calculateTotalPaid())}
                   </p>
                 </div>
@@ -1152,17 +1160,17 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
 
               {calculateRemaining() > 0 && payments.length > 0 && (
                 <div className="bg-warning/10 p-3 rounded-xl border border-warning/30">
-                  <p className="text-xs text-warning mb-1 font-medium uppercase tracking-wide">Falta Pagar</p>
-                  <p className="text-2xl font-semibold text-warning tabular-nums">
+                  <p className="text-[10px] sm:text-xs text-warning mb-1 font-medium uppercase tracking-wide">Falta Pagar</p>
+                  <p className="text-xl sm:text-2xl font-semibold text-warning tabular-nums">
                     {formatCurrency(calculateRemaining())}
                   </p>
                 </div>
               )}
 
               {calculateChange() > 0 && (
-                <div className="bg-success p-4 rounded-xl">
-                  <p className="text-xs text-success-foreground/70 mb-1 font-medium uppercase tracking-wide">Troco a Devolver</p>
-                  <p className="text-3xl font-semibold text-success-foreground tabular-nums">
+                <div className="bg-gradient-to-br from-success to-success/90 p-3 sm:p-4 rounded-xl shadow-lg">
+                  <p className="text-[10px] sm:text-xs text-success-foreground/80 mb-1 font-medium uppercase tracking-wide">Troco a Devolver</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-success-foreground tabular-nums">
                     {formatCurrency(calculateChange())}
                   </p>
                 </div>
@@ -1312,19 +1320,19 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
             </div>
 
             {/* Keyboard Shortcuts */}
-            <div className="bg-muted/50 p-3 rounded-xl text-xs space-y-1 border border-border">
-              <p className="font-semibold mb-2 text-sm text-foreground">Atalhos de Teclado</p>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-muted-foreground">
-                <p><strong className="text-foreground">F2</strong> - Focar busca</p>
-                <p><strong className="text-foreground">F5</strong> - Cancelar</p>
-                <p><strong className="text-foreground">F8</strong> - Finalizar</p>
-                <p><strong className="text-foreground">F11</strong> - Tela cheia</p>
-                <p><strong className="text-foreground">Enter</strong> - Adicionar</p>
+            <div className="bg-card p-3 rounded-xl text-xs space-y-1 border border-border">
+              <p className="font-semibold mb-2 text-sm text-foreground">Atalhos</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1 text-muted-foreground">
+                <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">F2</kbd> Busca</p>
+                <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">F5</kbd> Cancelar</p>
+                <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">F8</kbd> Finalizar</p>
+                <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">F11</kbd> Tela cheia</p>
+                <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Enter</kbd> Adicionar</p>
               </div>
             </div>
           </div>
         </div>
-      </CardSection>
+      </main>
 
       {/* Receipt Selection Modal */}
       <Dialog open={showReceipt} onOpenChange={(open) => {
