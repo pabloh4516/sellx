@@ -19,6 +19,8 @@ import {
 import { format, differenceInDays, subDays } from 'date-fns';
 import { ExportMenu } from '@/components/ui/export-menu';
 import { useSafeLoading } from '@/components/ui/safe-loading';
+import { usePlanLimits } from '@/hooks/usePlanLimits';
+import LimitAlert from '@/components/billing/LimitAlert';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +43,7 @@ export default function Customers() {
   const [sales, setSales] = useState([]);
   const [installments, setInstallments] = useState([]);
   const [loading, setLoading, isTimeout] = useSafeLoading(true, 20000); // 20s timeout
+  const { checkLimitAndNotify, getUsageSummary, refreshUsage } = usePlanLimits();
   const [searchTerm, setSearchTerm] = useState('');
   const [segmentFilter, setSegmentFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
@@ -125,6 +128,7 @@ export default function Customers() {
           'Cliente cadastrado!',
           `"${formData.name}" foi adicionado a sua base de clientes.`
         );
+        refreshUsage(); // Atualizar contagem de uso do plano
       }
       setShowForm(false);
       resetForm();
@@ -172,6 +176,7 @@ export default function Customers() {
         `"${customer.name}" foi removido da sua base de clientes.`
       );
       loadData();
+      refreshUsage(); // Atualizar contagem de uso do plano
     } catch (error) {
       console.error('Error deleting customer:', error);
       showErrorToast(error);
@@ -527,13 +532,30 @@ export default function Customers() {
                 { key: 'aniversario', label: 'Aniversario' },
               ]}
             />
-            <Button onClick={() => { resetForm(); setShowForm(true); }} className="gap-2">
+            <Button onClick={() => {
+              if (!checkLimitAndNotify('customers')) return;
+              resetForm();
+              setShowForm(true);
+            }} className="gap-2">
               <Plus className="w-4 h-4" />
               Novo Cliente
             </Button>
           </div>
         }
       />
+
+      {/* Alerta de limite */}
+      {(() => {
+        const summary = getUsageSummary('customers');
+        return (
+          <LimitAlert
+            limitKey="customers"
+            label={summary.label}
+            current={customers.length}
+            limit={summary.limit}
+          />
+        );
+      })()}
 
       {/* Segment Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

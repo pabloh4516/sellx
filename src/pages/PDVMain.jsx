@@ -131,98 +131,19 @@ export default function PDVMain() {
     );
   }
 
-  // Renderiza o PDV com informacao do operador
-  const OperatorBar = () => (
-    <div className="h-12 bg-card border-b border-border flex items-center justify-between px-4 text-sm">
-      <div className="flex items-center gap-4">
-        {/* Operador */}
-        <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-            operator.role === USER_ROLES.ADMIN || operator.role === USER_ROLES.OWNER
-              ? 'bg-destructive/10'
-              : operator.role === USER_ROLES.MANAGER
-                ? 'bg-warning/10'
-                : 'bg-primary/10'
-          }`}>
-            <User className="w-3.5 h-3.5 text-primary" />
-          </div>
-          <span className="font-medium">{operator.full_name}</span>
-          <span className="px-2 py-0.5 rounded text-xs bg-secondary">
-            {ROLE_LABELS[operator.role] || operator.role}
-          </span>
-        </div>
-
-        {/* Separador */}
-        <div className="h-6 w-px bg-border" />
-
-        {/* Status do Caixa */}
-        <Link to={createPageUrl('CashRegister')}>
-          {cashRegister ? (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-success/10 hover:bg-success/20 transition-colors cursor-pointer">
-              <Unlock className="w-4 h-4 text-success" />
-              <div className="flex flex-col">
-                <span className="text-xs font-medium text-success flex items-center gap-1">
-                  {cashRegisterMode === 'per_operator' ? 'Meu Caixa' : 'Caixa'} Aberto
-                  <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                </span>
-                {(canViewAllCash || cashRegisterMode === 'per_operator') && cashRegister.opened_by && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {cashRegisterMode === 'shared' && `por ${cashRegister.opened_by} `}às {safeFormatDate(cashRegister.opening_date, 'HH:mm')}
-                  </span>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 transition-colors cursor-pointer">
-              <Lock className="w-4 h-4 text-destructive" />
-              <div className="flex flex-col">
-                <span className="text-xs font-medium text-destructive">
-                  {cashRegisterMode === 'per_operator' ? 'Meu Caixa' : 'Caixa'} Fechado
-                </span>
-                {cashRegisterMode === 'shared' && !isAdminOrManager && (
-                  <span className="text-[10px] text-muted-foreground">Aguarde admin abrir</span>
-                )}
-              </div>
-            </div>
-          )}
-        </Link>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 text-muted-foreground">
-          <Clock className="w-3.5 h-3.5" />
-          <span className="tabular-nums">{format(currentTime, 'HH:mm')}</span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={handleChangeOperator}
-        >
-          <LogOut className="w-3.5 h-3.5 mr-1.5" />
-          Trocar Operador
-        </Button>
-      </div>
-    </div>
-  );
+  // Props comuns para os PDVs
+  const pdvProps = {
+    onModeChange: setMode,
+    currentMode: mode,
+    operator,
+    onChangeOperator: handleChangeOperator,
+    cashRegister,
+    cashRegisterMode,
+  };
 
   if (mode === 'quick') {
-    return (
-      <div className="h-screen flex flex-col">
-        <OperatorBar />
-        <div className="flex-1 overflow-hidden">
-          <PDVQuick onModeChange={setMode} currentMode={mode} operator={operator} />
-        </div>
-      </div>
-    );
+    return <PDVQuick {...pdvProps} />;
   }
 
-  return (
-    <div className="h-screen flex flex-col">
-      <OperatorBar />
-      <div className="flex-1 overflow-hidden">
-        <PDV onModeChange={setMode} currentMode={mode} operator={operator} />
-      </div>
-    </div>
-  );
+  return <PDV {...pdvProps} />;
 }

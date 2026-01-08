@@ -61,8 +61,8 @@ const FEATURES = [
   },
   {
     icon: Smartphone,
-    title: 'Funciona Offline',
-    description: 'Continue vendendo mesmo sem internet. O sistema sincroniza automaticamente quando a conexao voltar.',
+    title: 'App Mobile',
+    description: 'Instale o app no celular ou computador para acesso rapido e experiencia de aplicativo nativo.',
   },
 ];
 
@@ -135,7 +135,7 @@ const TESTIMONIALS = [
     role: 'Proprietario',
     company: 'Pet Shop Amigo Fiel',
     image: null,
-    text: 'A funcao offline salvou meu negocio! Quando cai a internet, continuo vendendo normalmente. Recomendo para todos os comerciantes.',
+    text: 'O sistema e muito rapido e facil de usar! Consigo fazer tudo pelo celular. Recomendo para todos os comerciantes.',
     rating: 5,
   },
 ];
@@ -146,8 +146,8 @@ const FAQS = [
     answer: 'Nao! O Sellx funciona direto no navegador. Basta acessar e comecar a usar. Voce tambem pode instalar como app no celular ou computador para acesso rapido.',
   },
   {
-    question: 'E se a internet cair?',
-    answer: 'O Sellx funciona offline! Voce continua vendendo normalmente e quando a internet voltar, tudo sincroniza automaticamente.',
+    question: 'O sistema e seguro?',
+    answer: 'Sim! Utilizamos criptografia SSL, backups automaticos e seguimos as melhores praticas de seguranca. Seus dados estao protegidos em servidores de alta disponibilidade.',
   },
   {
     question: 'Posso migrar meus dados de outro sistema?',
@@ -309,7 +309,7 @@ export default function LandingPage() {
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium">
                 <Zap className="w-4 h-4" />
-                <span>Novo: Modo Offline disponivel!</span>
+                <span>Novo: Instale como App!</span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">

@@ -66,8 +66,17 @@ const initialFormData = {
   city: '',
   state: '',
   plan: 'free',
+  custom_limits: false, // Se true, usa limites customizados ao inves do plano
   max_users: 1,
   max_products: 100,
+  max_customers: 100,
+  max_sales_per_month: 100,
+  max_pdv_terminals: 1,
+  max_service_orders: 50,
+  max_quotes: 50,
+  max_suppliers: 20,
+  max_storage_mb: 100,
+  max_stores: 1,
   is_active: true,
 };
 
@@ -203,8 +212,17 @@ export default function AdminOrganizations() {
           city: formData.city || null,
           state: formData.state || null,
           plan: formData.plan,
-          max_users: plan?.max_users || formData.max_users,
-          max_products: plan?.max_products || formData.max_products,
+          custom_limits: formData.custom_limits || false,
+          max_users: formData.custom_limits ? formData.max_users : (plan?.max_users || formData.max_users),
+          max_products: formData.custom_limits ? formData.max_products : (plan?.max_products || formData.max_products),
+          max_customers: formData.custom_limits ? formData.max_customers : (plan?.max_customers || 100),
+          max_sales_per_month: formData.custom_limits ? formData.max_sales_per_month : (plan?.max_sales_per_month || 100),
+          max_pdv_terminals: formData.custom_limits ? formData.max_pdv_terminals : (plan?.max_pdv_terminals || 1),
+          max_service_orders: formData.custom_limits ? formData.max_service_orders : (plan?.max_service_orders || 50),
+          max_quotes: formData.custom_limits ? formData.max_quotes : (plan?.max_quotes || 50),
+          max_suppliers: formData.custom_limits ? formData.max_suppliers : (plan?.max_suppliers || 20),
+          max_storage_mb: formData.custom_limits ? formData.max_storage_mb : (plan?.max_storage_mb || 100),
+          max_stores: formData.custom_limits ? formData.max_stores : (plan?.max_stores || 1),
           is_active: formData.is_active,
         })
         .select()
@@ -244,8 +262,17 @@ export default function AdminOrganizations() {
           city: formData.city || null,
           state: formData.state || null,
           plan: formData.plan,
+          custom_limits: formData.custom_limits || false,
           max_users: formData.max_users,
           max_products: formData.max_products,
+          max_customers: formData.max_customers,
+          max_sales_per_month: formData.max_sales_per_month,
+          max_pdv_terminals: formData.max_pdv_terminals,
+          max_service_orders: formData.max_service_orders,
+          max_quotes: formData.max_quotes,
+          max_suppliers: formData.max_suppliers,
+          max_storage_mb: formData.max_storage_mb,
+          max_stores: formData.max_stores,
           is_active: formData.is_active,
         })
         .eq('id', selectedOrg.id);
@@ -343,8 +370,17 @@ export default function AdminOrganizations() {
       city: org.city || '',
       state: org.state || '',
       plan: org.plan || 'free',
-      max_users: org.max_users || 1,
-      max_products: org.max_products || 100,
+      custom_limits: org.custom_limits || false,
+      max_users: org.max_users ?? 1,
+      max_products: org.max_products ?? 100,
+      max_customers: org.max_customers ?? 100,
+      max_sales_per_month: org.max_sales_per_month ?? 100,
+      max_pdv_terminals: org.max_pdv_terminals ?? 1,
+      max_service_orders: org.max_service_orders ?? 50,
+      max_quotes: org.max_quotes ?? 50,
+      max_suppliers: org.max_suppliers ?? 20,
+      max_storage_mb: org.max_storage_mb ?? 100,
+      max_stores: org.max_stores ?? 1,
       is_active: org.is_active !== false,
     });
     setEditOpen(true);
@@ -474,27 +510,145 @@ export default function AdminOrganizations() {
       </div>
 
       {isEdit && (
-        <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-muted/50">
-          <div>
-            <Label>Max Usuarios</Label>
-            <Input
-              type="number"
-              value={formData.max_users}
-              onChange={(e) => setFormData({ ...formData, max_users: parseInt(e.target.value) || 1 })}
-              min={-1}
-            />
-            <p className="text-xs text-muted-foreground mt-1">-1 = ilimitado</p>
+        <div className="space-y-4 p-4 rounded-lg bg-muted/50">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-base font-semibold">Limites Customizados</Label>
+              <p className="text-xs text-muted-foreground">Ative para definir limites especificos para esta empresa</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">{formData.custom_limits ? 'Ativo' : 'Usar do Plano'}</span>
+              <Button
+                type="button"
+                variant={formData.custom_limits ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFormData({ ...formData, custom_limits: !formData.custom_limits })}
+              >
+                {formData.custom_limits ? 'Customizado' : 'Plano'}
+              </Button>
+            </div>
           </div>
-          <div>
-            <Label>Max Produtos</Label>
-            <Input
-              type="number"
-              value={formData.max_products}
-              onChange={(e) => setFormData({ ...formData, max_products: parseInt(e.target.value) || 100 })}
-              min={-1}
-            />
-            <p className="text-xs text-muted-foreground mt-1">-1 = ilimitado</p>
-          </div>
+
+          {formData.custom_limits && (
+            <>
+              <div className="flex items-center justify-end gap-2 pb-2 border-b">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFormData({
+                    ...formData,
+                    max_users: -1,
+                    max_products: -1,
+                    max_customers: -1,
+                    max_sales_per_month: -1,
+                    max_pdv_terminals: -1,
+                    max_service_orders: -1,
+                    max_quotes: -1,
+                    max_suppliers: -1,
+                    max_storage_mb: -1,
+                    max_stores: -1,
+                  })}
+                >
+                  Definir Tudo Ilimitado
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs">Usuarios</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_users}
+                    onChange={(e) => setFormData({ ...formData, max_users: parseInt(e.target.value) || 0 })}
+                    min={-1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Produtos</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_products}
+                    onChange={(e) => setFormData({ ...formData, max_products: parseInt(e.target.value) || 0 })}
+                    min={-1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Clientes</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_customers}
+                    onChange={(e) => setFormData({ ...formData, max_customers: parseInt(e.target.value) || 0 })}
+                    min={-1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Vendas/Mes</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_sales_per_month}
+                    onChange={(e) => setFormData({ ...formData, max_sales_per_month: parseInt(e.target.value) || 0 })}
+                    min={-1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">PDVs Simultaneos</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_pdv_terminals}
+                    onChange={(e) => setFormData({ ...formData, max_pdv_terminals: parseInt(e.target.value) || 0 })}
+                    min={-1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Ordens Servico/Mes</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_service_orders}
+                    onChange={(e) => setFormData({ ...formData, max_service_orders: parseInt(e.target.value) || 0 })}
+                    min={-1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Orcamentos/Mes</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_quotes}
+                    onChange={(e) => setFormData({ ...formData, max_quotes: parseInt(e.target.value) || 0 })}
+                    min={-1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Fornecedores</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_suppliers}
+                    onChange={(e) => setFormData({ ...formData, max_suppliers: parseInt(e.target.value) || 0 })}
+                    min={-1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Storage (MB)</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_storage_mb}
+                    onChange={(e) => setFormData({ ...formData, max_storage_mb: parseInt(e.target.value) || 0 })}
+                    min={-1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Lojas/Filiais</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_stores}
+                    onChange={(e) => setFormData({ ...formData, max_stores: parseInt(e.target.value) || 0 })}
+                    min={-1}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Use -1 para ilimitado</p>
+            </>
+          )}
         </div>
       )}
     </div>

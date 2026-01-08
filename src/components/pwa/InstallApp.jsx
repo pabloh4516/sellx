@@ -230,7 +230,7 @@ function InstallInstructionsDialog({ open, onOpenChange }) {
             Instalar Sellx
           </DialogTitle>
           <DialogDescription>
-            Instale o app para acesso rapido e funcionamento offline
+            Instale o app para acesso rapido e melhor experiencia
           </DialogDescription>
         </DialogHeader>
 

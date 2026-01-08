@@ -41,22 +41,68 @@ export function AuthProvider({ children }) {
     }
   }, [operator]);
 
+  // Limpar tokens invalidos do localStorage
+  const clearInvalidSession = async () => {
+    console.log('[Auth] Limpando sessao invalida...');
+    // Limpar dados de auth do Supabase no localStorage
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+
+    // Limpar sessionStorage tambem
+    sessionStorage.removeItem('currentOperator');
+
+    // Resetar estado
+    setUser(null);
+    setOperator(null);
+    setCompany(null);
+    setSubscription(null);
+    setLoading(false);
+    loadedUserIdRef.current = null;
+    console.log('[Auth] Sessao invalida limpa com sucesso');
+  };
+
   // Carrega usuario ao iniciar
   useEffect(() => {
     // Verificar sessao existente
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      // Se houver erro de token invalido, limpar sessao
+      if (error) {
+        console.warn('[Auth] Erro ao obter sessao:', error.message);
+        if (error.message?.includes('Refresh Token') || error.message?.includes('Invalid')) {
+          clearInvalidSession();
+          return;
+        }
+      }
+
       console.log('[Auth] Sessao:', session ? 'existe' : 'nao existe');
       if (session?.user) {
         loadUserData(session.user);
       } else {
         setLoading(false);
       }
+    }).catch((error) => {
+      console.warn('[Auth] Erro critico ao verificar sessao:', error);
+      clearInvalidSession();
     });
 
     // Listener para mudancas de auth
     const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('[Auth] Event:', event);
+
+        // Tratar erro de token invalido
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          console.warn('[Auth] Falha ao renovar token');
+          await clearInvalidSession();
+          return;
+        }
+
         if (event === 'SIGNED_IN' && session?.user) {
           await loadUserData(session.user);
         } else if (event === 'SIGNED_OUT') {
@@ -70,8 +116,18 @@ export function AuthProvider({ children }) {
       }
     );
 
+    // Listener global para erros de auth do Supabase
+    const handleAuthError = (event) => {
+      if (event.detail?.error?.message?.includes('Refresh Token')) {
+        console.warn('[Auth] Erro de refresh token detectado, limpando sessao...');
+        clearInvalidSession();
+      }
+    };
+    window.addEventListener('supabase.auth.error', handleAuthError);
+
     return () => {
       authSubscription?.unsubscribe();
+      window.removeEventListener('supabase.auth.error', handleAuthError);
     };
   }, []);
 

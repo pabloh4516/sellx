@@ -13,8 +13,8 @@ import {
   Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, User, Barcode,
   Percent, X, Check, Wallet, Clock, Package,
   AlertTriangle, DollarSign, UserPlus, Printer, LayoutGrid, List,
-  Lock, Keyboard, ChevronDown, ArrowDownCircle, ArrowUpCircle, Maximize2, Minimize2,
-  Crown, Camera, LogOut, Ban, FileText, Coins
+  Lock, Unlock, Keyboard, ChevronDown, ArrowDownCircle, ArrowUpCircle, Maximize2, Minimize2,
+  Crown, Camera, LogOut, Ban, FileText, Coins, RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -39,7 +39,10 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { USER_ROLES } from '@/config/permissions';
+import { USER_ROLES, ROLE_LABELS } from '@/config/permissions';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { usePlanLimits } from '@/hooks/usePlanLimits';
 
 // Motivos de cancelamento pre-definidos
 const CANCELLATION_REASONS = [
@@ -53,7 +56,7 @@ const CANCELLATION_REASONS = [
   { value: 'outro', label: 'Outro motivo' },
 ];
 
-export default function PDV({ onModeChange, currentMode, operator }) {
+export default function PDV({ onModeChange, currentMode, operator, onChangeOperator, cashRegister: propCashRegister, cashRegisterMode: propCashRegisterMode }) {
   // Carregar configuracoes do sistema
   const [systemSettings, setSystemSettings] = useState(() => {
     // Valor inicial do cache/localStorage
@@ -73,6 +76,9 @@ export default function PDV({ onModeChange, currentMode, operator }) {
 
   const cashRegisterMode = systemSettings.cashRegisterMode || 'shared';
   const blockSaleNoStock = systemSettings.blockSaleNoStock ?? true; // Default true para bloquear
+
+  // Hook de limites do plano
+  const { checkLimitAndNotify, refreshUsage } = usePlanLimits();
 
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -797,6 +803,11 @@ export default function PDV({ onModeChange, currentMode, operator }) {
       return;
     }
 
+    // Verificar limite de vendas do plano
+    if (!checkLimitAndNotify('sales_per_month')) {
+      return;
+    }
+
     if (isFutureOrder) {
       if (!selectedCustomer) {
         toast.error('Selecione um cliente para pedido futuro');
@@ -930,6 +941,7 @@ export default function PDV({ onModeChange, currentMode, operator }) {
       setSaleNumber(newSaleNumber + 1);
 
       loadData();
+      refreshUsage(); // Atualizar contagem de uso do plano
 
     } catch (error) {
       console.error('Error finalizing sale:', error);
@@ -1069,67 +1081,125 @@ export default function PDV({ onModeChange, currentMode, operator }) {
       <KeyboardShortcuts onShortcut={handleKeyboardShortcut} enabled={!showPaymentModal && !showCustomerModal} />
 
       <div className="h-screen flex flex-col overflow-hidden bg-background">
-        {/* Header */}
-        <div className="h-14 bg-card border-b border-border flex items-center justify-between px-5 gap-5">
-          {/* Left - Mode Toggle & Register Status */}
+        {/* Header Unificado */}
+        <div className="h-14 bg-card border-b border-border flex items-center justify-between px-4 gap-4">
+          {/* Left - Mode Toggle, Operator & Register Status */}
           <div className="flex items-center gap-3">
             {onModeChange && (
               <PDVModeToggle mode={currentMode} onModeChange={(mode) => handleExitPDV(mode)} />
             )}
 
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-success/10 text-success">
-              <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-              <span className="font-semibold text-sm">Caixa Aberto</span>
-            </div>
+            {/* Separador */}
+            <div className="h-6 w-px bg-border hidden sm:block" />
+
+            {/* Operador */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-secondary transition-colors">
+                  <div className={cn(
+                    "w-7 h-7 rounded-full flex items-center justify-center",
+                    operator?.role === USER_ROLES.ADMIN || operator?.role === USER_ROLES.OWNER
+                      ? 'bg-destructive/10'
+                      : operator?.role === USER_ROLES.MANAGER
+                        ? 'bg-warning/10'
+                        : 'bg-primary/10'
+                  )}>
+                    <User className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="hidden md:flex flex-col items-start">
+                    <span className="text-sm font-medium leading-tight">{operator?.full_name}</span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">
+                      {ROLE_LABELS[operator?.role] || operator?.role}
+                    </span>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground hidden md:block" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                <div className="px-2 py-1.5 border-b border-border">
+                  <p className="font-medium text-sm">{operator?.full_name}</p>
+                  <p className="text-xs text-muted-foreground">{ROLE_LABELS[operator?.role]}</p>
+                </div>
+                <DropdownMenuItem onClick={onChangeOperator} className="text-destructive focus:text-destructive">
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Trocar Operador
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Separador */}
+            <div className="h-6 w-px bg-border hidden sm:block" />
+
+            {/* Status do Caixa */}
+            <Link to={createPageUrl('CashRegister')}>
+              <div className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors cursor-pointer",
+                (propCashRegister || cashRegister)
+                  ? "bg-success/10 hover:bg-success/20 text-success"
+                  : "bg-destructive/10 hover:bg-destructive/20 text-destructive"
+              )}>
+                {(propCashRegister || cashRegister) ? (
+                  <Unlock className="w-4 h-4" />
+                ) : (
+                  <Lock className="w-4 h-4" />
+                )}
+                <span className="font-semibold text-sm hidden sm:block">
+                  {(propCashRegister || cashRegister) ? 'Caixa Aberto' : 'Caixa Fechado'}
+                </span>
+                {(propCashRegister || cashRegister) && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                )}
+              </div>
+            </Link>
 
             {/* Indicador de venda em andamento */}
             {cart.length > 0 && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary">
                 <ShoppingCart className="w-4 h-4" />
-                <span className="font-semibold text-sm">{cart.length} itens</span>
+                <span className="font-semibold text-sm">{cart.length}</span>
               </div>
             )}
           </div>
 
           {/* Center - Sale Number & Time */}
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-secondary rounded-xl">
+              <span className="text-xs text-muted-foreground font-medium hidden sm:inline">Venda</span>
+              <span className="font-bold tabular-nums">#{saleNumber.toString().padStart(6, '0')}</span>
+            </div>
+            <div className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground">
               <Clock className="w-4 h-4" />
               <span className="tabular-nums font-medium">{formatTime(currentTime)}</span>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-1.5 bg-secondary rounded-xl">
-              <span className="text-xs text-muted-foreground font-medium">Venda</span>
-              <span className="font-bold tabular-nums">{saleNumber.toString().padStart(6, '0')}</span>
             </div>
           </div>
 
           {/* Right - Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setShowCustomerModal(true)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium hover:bg-secondary transition-colors"
+              title="Cliente (F4)"
             >
               <User className="w-4 h-4" />
-              <span className="hidden lg:block">{selectedCustomer?.name || 'Cliente'}</span>
+              <span className="hidden lg:block max-w-24 truncate">{selectedCustomer?.name || 'Cliente'}</span>
             </button>
 
-            <Button variant="outline" size="icon" onClick={toggleFullscreen} title={isFullscreen ? "Sair da tela cheia (F11)" : "Tela cheia (F11)"}>
+            <Button variant="ghost" size="icon" onClick={toggleFullscreen} title={isFullscreen ? "Sair da tela cheia (F11)" : "Tela cheia (F11)"}>
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium hover:bg-secondary transition-colors">
+                <Button variant="ghost" size="icon" title="Atalhos">
                   <Keyboard className="w-4 h-4" />
-                  <span className="hidden lg:block">Atalhos</span>
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem className="flex justify-between">
                   <span>Buscar produto</span>
                   <span className="text-muted-foreground text-xs">F2</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="flex justify-between">
+                <DropdownMenuItem className="flex justify-between" onClick={() => setShowCustomerModal(true)}>
                   <span>Selecionar cliente</span>
                   <span className="text-muted-foreground text-xs">F4</span>
                 </DropdownMenuItem>
@@ -1142,7 +1212,7 @@ export default function PDV({ onModeChange, currentMode, operator }) {
                   <span>Pagamento</span>
                   <span className="text-muted-foreground text-xs">F8</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="flex justify-between">
+                <DropdownMenuItem className="flex justify-between" onClick={toggleFullscreen}>
                   <span>Tela cheia</span>
                   <span className="text-muted-foreground text-xs">F11</span>
                 </DropdownMenuItem>
@@ -1150,15 +1220,20 @@ export default function PDV({ onModeChange, currentMode, operator }) {
                   <span>Finalizar venda</span>
                   <span className="text-muted-foreground text-xs">F12</span>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onChangeOperator}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Trocar Operador
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
             {/* Botao Sair */}
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => handleExitPDV('detailed')}
-              className="text-muted-foreground hover:text-foreground"
+              size="icon"
+              onClick={() => handleExitPDV(null)}
+              className="text-muted-foreground hover:text-destructive"
               title="Sair do PDV"
             >
               <LogOut className="w-4 h-4" />

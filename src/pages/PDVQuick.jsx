@@ -8,8 +8,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Package, Clock, Maximize2, Minimize2, ShoppingCart, Search, Printer, Plus, X, CreditCard, Banknote, Ban, AlertTriangle, Coins, LogOut, Check } from 'lucide-react';
-import { USER_ROLES } from '@/config/permissions';
+import { Package, Clock, Maximize2, Minimize2, ShoppingCart, Search, Printer, Plus, X, CreditCard, Banknote, Ban, AlertTriangle, Coins, LogOut, Check, User, Keyboard, Lock, Unlock, RefreshCw, ChevronDown } from 'lucide-react';
+import { USER_ROLES, ROLE_LABELS } from '@/config/permissions';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PDVModeToggle } from '@/components/pdv/PDVModeToggle';
@@ -24,6 +26,14 @@ import {
   PageContainer,
   CardSection,
 } from '@/components/nexo';
+import { usePlanLimits } from '@/hooks/usePlanLimits';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 // Motivos de cancelamento pre-definidos
 const CANCELLATION_REASONS = [
@@ -37,7 +47,7 @@ const CANCELLATION_REASONS = [
   { value: 'outro', label: 'Outro motivo' },
 ];
 
-export default function PDVQuick({ onModeChange, currentMode, operator }) {
+export default function PDVQuick({ onModeChange, currentMode, operator, onChangeOperator, cashRegister: propCashRegister, cashRegisterMode: propCashRegisterMode }) {
   // Carregar configuracoes do sistema
   const [systemSettings, setSystemSettings] = useState(() => {
     // Valor inicial do cache/localStorage
@@ -57,6 +67,9 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
 
   const cashRegisterMode = systemSettings.cashRegisterMode || 'shared';
   const blockSaleNoStock = systemSettings.blockSaleNoStock ?? true; // Default true para bloquear
+
+  // Hook de limites do plano
+  const { checkLimitAndNotify, refreshUsage } = usePlanLimits();
 
   const [products, setProducts] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
@@ -107,6 +120,7 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
   const [showA4Receipt, setShowA4Receipt] = useState(false);
   const [receiptFormat, setReceiptFormat] = useState('thermal');
   const [completedSale, setCompletedSale] = useState(null);
+  const [saleNumber, setSaleNumber] = useState(1);
 
   // Estados para preco livre
   const [showOpenPriceModal, setShowOpenPriceModal] = useState(false);
@@ -149,13 +163,14 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
 
   const loadData = async () => {
     try {
-      const [productsData, methodsData, cashData, companyData, sellersData, customersData] = await Promise.all([
+      const [productsData, methodsData, cashData, companyData, sellersData, customersData, salesData] = await Promise.all([
         base44.entities.Product.filter({ is_active: true }),
         base44.entities.PaymentMethod.filter({ is_active: true }),
         base44.entities.CashRegister.filter({ status: 'aberto' }),
         base44.entities.Company.list(),
         base44.entities.Seller.filter({ is_active: true }),
-        base44.entities.Customer.list()
+        base44.entities.Customer.list(),
+        base44.entities.Sale.list()
       ]);
 
       setProducts(productsData);
@@ -180,6 +195,10 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
       if (companyData.length > 0) {
         setCompany(companyData[0]);
       }
+
+      // Set next sale number
+      const nextNumber = salesData.length > 0 ? Math.max(...salesData.map(s => s.sale_number || 0)) + 1 : 1;
+      setSaleNumber(nextNumber);
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Erro ao carregar dados');
@@ -709,6 +728,11 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
       return;
     }
 
+    // Verificar limite de vendas do plano
+    if (!checkLimitAndNotify('sales_per_month')) {
+      return;
+    }
+
     if (payments.length === 0) {
       toast.error('Adicione pelo menos uma forma de pagamento');
       return;
@@ -827,6 +851,7 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
       setQuantity(1);
 
       loadData();
+      refreshUsage(); // Atualizar contagem de uso do plano
 
     } catch (error) {
       console.error('Error finalizing sale:', error);
@@ -839,6 +864,10 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
       style: 'currency',
       currency: 'BRL'
     }).format(value || 0);
+  };
+
+  const formatTime = (date) => {
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
   useEffect(() => {
@@ -896,73 +925,168 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
   }
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-background">
-      {/* Header fixo */}
-      <header className="sticky top-0 z-40 bg-card border-b border-border shadow-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            {company?.logo_url && (
-              <img src={company.logo_url} alt="Logo" className="h-8 sm:h-10 object-contain hidden sm:block" />
-            )}
-            <div className="min-w-0">
-              <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">
-                PDV Rapido
-              </h1>
-              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
-                <span className="text-success">●</span> {format(currentTime, "dd/MM HH:mm", { locale: ptBR })}
-                {selectedCustomer && <span className="ml-1 sm:ml-2">| {selectedCustomer.name}</span>}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowQuickCustomerForm(true)}
-              className="hidden lg:flex h-9"
-              title="Cadastrar novo cliente (F4)"
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Novo Cliente
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setShowQuickCustomerForm(true)}
-              className="lg:hidden h-9 w-9"
-              title="Cadastrar novo cliente"
-            >
-              <UserPlus className="w-4 h-4" />
-            </Button>
-            {onModeChange && (
-              <PDVModeToggle mode={currentMode} onModeChange={(mode) => handleExitPDV(mode)} />
-            )}
-            <Button variant="outline" size="icon" onClick={toggleFullscreen} className="h-9 w-9" title={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}>
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => handleExitPDV('detailed')}
-              className="h-9 w-9 text-muted-foreground hover:text-foreground"
-              title="Sair do PDV"
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
-            <div className="text-right pl-2 border-l border-border hidden sm:block">
-              <div className="text-xl font-semibold text-foreground tabular-nums">
-                {format(currentTime, 'HH:mm:ss')}
+    <div ref={containerRef} className="h-screen flex flex-col overflow-hidden bg-background">
+      {/* Header Unificado */}
+      <div className="h-14 bg-card border-b border-border flex items-center justify-between px-4 gap-4">
+        {/* Left - Mode Toggle, Operator & Register Status */}
+        <div className="flex items-center gap-3">
+          {onModeChange && (
+            <PDVModeToggle mode={currentMode} onModeChange={(mode) => handleExitPDV(mode)} />
+          )}
+
+          {/* Separador */}
+          <div className="h-6 w-px bg-border hidden sm:block" />
+
+          {/* Operador */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-secondary transition-colors">
+                <div className={cn(
+                  "w-7 h-7 rounded-full flex items-center justify-center",
+                  operator?.role === USER_ROLES.ADMIN || operator?.role === USER_ROLES.OWNER
+                    ? 'bg-destructive/10'
+                    : operator?.role === USER_ROLES.MANAGER
+                      ? 'bg-warning/10'
+                      : 'bg-primary/10'
+                )}>
+                  <User className="w-4 h-4 text-primary" />
+                </div>
+                <div className="hidden md:flex flex-col items-start">
+                  <span className="text-sm font-medium leading-tight">{operator?.full_name}</span>
+                  <span className="text-[10px] text-muted-foreground leading-tight">
+                    {ROLE_LABELS[operator?.role] || operator?.role}
+                  </span>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground hidden md:block" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <div className="px-2 py-1.5 border-b border-border">
+                <p className="font-medium text-sm">{operator?.full_name}</p>
+                <p className="text-xs text-muted-foreground">{ROLE_LABELS[operator?.role]}</p>
               </div>
+              <DropdownMenuItem onClick={onChangeOperator} className="text-destructive focus:text-destructive">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Trocar Operador
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Separador */}
+          <div className="h-6 w-px bg-border hidden sm:block" />
+
+          {/* Status do Caixa */}
+          <Link to={createPageUrl('CashRegister')}>
+            <div className={cn(
+              "flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors cursor-pointer",
+              (propCashRegister || cashRegister)
+                ? "bg-success/10 hover:bg-success/20 text-success"
+                : "bg-destructive/10 hover:bg-destructive/20 text-destructive"
+            )}>
+              {(propCashRegister || cashRegister) ? (
+                <Unlock className="w-4 h-4" />
+              ) : (
+                <Lock className="w-4 h-4" />
+              )}
+              <span className="font-semibold text-sm hidden sm:block">
+                {(propCashRegister || cashRegister) ? 'Caixa Aberto' : 'Caixa Fechado'}
+              </span>
+              {(propCashRegister || cashRegister) && (
+                <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+              )}
             </div>
+          </Link>
+
+          {/* Indicador de venda em andamento */}
+          {cart.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary">
+              <ShoppingCart className="w-4 h-4" />
+              <span className="font-semibold text-sm">{cart.length}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Center - Sale Number & Time */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-secondary rounded-xl">
+            <span className="text-xs text-muted-foreground font-medium hidden sm:inline">Venda</span>
+            <span className="font-bold tabular-nums">#{saleNumber.toString().padStart(6, '0')}</span>
+          </div>
+          <div className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Clock className="w-4 h-4" />
+            <span className="tabular-nums font-medium">{formatTime(currentTime)}</span>
           </div>
         </div>
-      </header>
+
+        {/* Right - Actions */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowQuickCustomerForm(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium hover:bg-secondary transition-colors"
+            title="Cliente (F4)"
+          >
+            <User className="w-4 h-4" />
+            <span className="hidden lg:block max-w-24 truncate">{selectedCustomer?.name || 'Cliente'}</span>
+          </button>
+
+          <Button variant="ghost" size="icon" onClick={toggleFullscreen} title={isFullscreen ? "Sair da tela cheia (F11)" : "Tela cheia (F11)"}>
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" title="Atalhos">
+                <Keyboard className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem className="flex justify-between">
+                <span>Buscar produto</span>
+                <span className="text-muted-foreground text-xs">F2</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="flex justify-between" onClick={() => setShowQuickCustomerForm(true)}>
+                <span>Novo cliente</span>
+                <span className="text-muted-foreground text-xs">F4</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="flex justify-between" onClick={handleOpenCancelModal}>
+                <span>Cancelar venda</span>
+                <span className="text-muted-foreground text-xs">F5</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="flex justify-between">
+                <span>Finalizar venda</span>
+                <span className="text-muted-foreground text-xs">F12</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="flex justify-between" onClick={toggleFullscreen}>
+                <span>Tela cheia</span>
+                <span className="text-muted-foreground text-xs">F11</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onChangeOperator}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Trocar Operador
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Botao Sair */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleExitPDV(null)}
+            className="text-muted-foreground hover:text-destructive"
+            title="Sair do PDV"
+          >
+            <LogOut className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-3 sm:p-4">
-
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <main className="flex-1 overflow-auto p-3 sm:p-4">
+        <div className="max-w-7xl mx-auto">
+          {/* Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Side - Input Fields */}
           <div className="lg:col-span-7 space-y-3">
             {/* Barcode Input */}
@@ -1337,6 +1461,7 @@ export default function PDVQuick({ onModeChange, currentMode, operator }) {
             </div>
           </div>
         </div>
+      </div>
       </main>
 
       {/* Receipt Selection Modal */}

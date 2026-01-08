@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from 'sonner';
 import {
   CreditCard, Check, Crown, Zap, Building2, Users, Package,
-  ShoppingCart, Calendar, AlertTriangle, ArrowRight, Star, Sparkles
+  ShoppingCart, Calendar, AlertTriangle, ArrowRight, Star, Sparkles,
+  Monitor, Wrench, FileText, Truck, HardDrive, Store, Receipt
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -19,6 +20,8 @@ import {
   Grid,
   MetricCard,
 } from '@/components/nexo';
+import { usePlanLimits, DEFAULT_PLANS } from '@/hooks/usePlanLimits';
+import { LimitUsageCard } from '@/components/billing/LimitAlert';
 
 const PLAN_FEATURES = {
   free: {
@@ -113,15 +116,30 @@ const PLAN_FEATURES = {
   },
 };
 
+// Icones para cada limite
+const LIMIT_ICONS = {
+  users: Users,
+  products: Package,
+  customers: Users,
+  sales_per_month: Receipt,
+  pdv_terminals: Monitor,
+  service_orders: Wrench,
+  quotes: FileText,
+  suppliers: Truck,
+  storage_mb: HardDrive,
+  stores: Store,
+};
+
 export default function Billing() {
   const { user, company, subscription, isOwner, refreshUser } = useAuth();
-  const [plans, setPlans] = useState([]);
   const [billingHistory, setBillingHistory] = useState([]);
-  const [usage, setUsage] = useState({ users: 0, products: 0, customers: 0 });
   const [loading, setLoading] = useState(true);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [billingCycle, setBillingCycle] = useState('monthly');
+
+  // Hook centralizado de limites
+  const { usage, getAllUsageSummaries, loading: limitsLoading } = usePlanLimits();
 
   const currentPlan = company?.plan || 'free';
   const planInfo = PLAN_FEATURES[currentPlan] || PLAN_FEATURES.free;
@@ -132,19 +150,6 @@ export default function Billing() {
 
   const loadData = async () => {
     try {
-      // Carregar contagens de uso
-      const [usersCount, productsCount, customersCount] = await Promise.all([
-        base44.entities.User.count?.() || 0,
-        base44.entities.Product.count?.() || 0,
-        base44.entities.Customer.count?.() || 0,
-      ]);
-
-      setUsage({
-        users: usersCount,
-        products: productsCount,
-        customers: customersCount,
-      });
-
       // Carregar historico de cobranca (se disponivel)
       try {
         const history = await base44.entities.BillingHistory?.list?.() || [];
@@ -194,7 +199,7 @@ export default function Billing() {
     );
   }
 
-  if (loading) {
+  if (loading && limitsLoading) {
     return (
       <PageContainer>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -247,46 +252,27 @@ export default function Billing() {
       {/* Uso do Plano */}
       <div className="mb-8">
         <h3 className="text-lg font-semibold mb-4">Uso do Plano</h3>
-        <Grid cols={3}>
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-muted-foreground" />
-                <span className="font-medium">Usuarios</span>
-              </div>
-              <span className="text-sm">
-                {usage.users} / {planInfo.limits.users === -1 ? '∞' : planInfo.limits.users}
-              </span>
-            </div>
-            <Progress value={getUsagePercent(usage.users, planInfo.limits.users)} className="h-2" />
+        {limitsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-muted-foreground" />
-                <span className="font-medium">Produtos</span>
-              </div>
-              <span className="text-sm">
-                {usage.products} / {planInfo.limits.products === -1 ? '∞' : planInfo.limits.products}
-              </span>
-            </div>
-            <Progress value={getUsagePercent(usage.products, planInfo.limits.products)} className="h-2" />
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {getAllUsageSummaries().map(summary => {
+              const Icon = LIMIT_ICONS[summary.key] || Package;
+              return (
+                <LimitUsageCard
+                  key={summary.key}
+                  label={summary.label}
+                  icon={Icon}
+                  current={summary.current}
+                  limit={summary.limit}
+                  isUnlimited={summary.isUnlimited}
+                />
+              );
+            })}
           </div>
-
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-muted-foreground" />
-                <span className="font-medium">Clientes</span>
-              </div>
-              <span className="text-sm">
-                {usage.customers} / {planInfo.limits.customers === -1 ? '∞' : planInfo.limits.customers}
-              </span>
-            </div>
-            <Progress value={getUsagePercent(usage.customers, planInfo.limits.customers)} className="h-2" />
-          </div>
-        </Grid>
+        )}
       </div>
 
       {/* Planos Disponiveis */}

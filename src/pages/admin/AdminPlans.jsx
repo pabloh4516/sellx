@@ -39,6 +39,12 @@ import {
   Building,
   Receipt,
   UserPlus,
+  Monitor,
+  Wrench,
+  FileText,
+  Truck,
+  HardDrive,
+  Store,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
@@ -52,7 +58,13 @@ const INITIAL_PLAN = {
   max_users: 1,
   max_products: 100,
   max_customers: 100,
-  max_sales_month: 500,
+  max_sales_per_month: 500,
+  max_pdv_terminals: 1,
+  max_service_orders: 50,
+  max_quotes: 50,
+  max_suppliers: 20,
+  max_storage_mb: 100,
+  max_stores: 1,
   features: [],
   is_active: true,
 };
@@ -129,7 +141,13 @@ export default function AdminPlans() {
           max_users: editingPlan.max_users,
           max_products: editingPlan.max_products,
           max_customers: editingPlan.max_customers,
-          max_sales_month: editingPlan.max_sales_month,
+          max_sales_per_month: editingPlan.max_sales_per_month,
+          max_pdv_terminals: editingPlan.max_pdv_terminals,
+          max_service_orders: editingPlan.max_service_orders,
+          max_quotes: editingPlan.max_quotes,
+          max_suppliers: editingPlan.max_suppliers,
+          max_storage_mb: editingPlan.max_storage_mb,
+          max_stores: editingPlan.max_stores,
           features: features,
           is_active: editingPlan.is_active,
         })
@@ -192,7 +210,13 @@ export default function AdminPlans() {
           max_users: newPlan.max_users || 1,
           max_products: newPlan.max_products || 100,
           max_customers: newPlan.max_customers || 100,
-          max_sales_month: newPlan.max_sales_month || 500,
+          max_sales_per_month: newPlan.max_sales_per_month || 500,
+          max_pdv_terminals: newPlan.max_pdv_terminals || 1,
+          max_service_orders: newPlan.max_service_orders || 50,
+          max_quotes: newPlan.max_quotes || 50,
+          max_suppliers: newPlan.max_suppliers || 20,
+          max_storage_mb: newPlan.max_storage_mb || 100,
+          max_stores: newPlan.max_stores || 1,
           features: newPlan.features || [],
           is_active: newPlan.is_active,
         });
@@ -365,23 +389,59 @@ export default function AdminPlans() {
                 </div>
 
                 {/* Limits */}
-                <div className="space-y-2 text-sm">
+                <div className="space-y-1.5 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground flex items-center gap-2">
-                      <Users className="w-4 h-4" />
+                      <Users className="w-3.5 h-3.5" />
                       Usuarios
                     </span>
-                    <span className="font-medium">
-                      {plan.max_users === -1 ? 'Ilimitado' : plan.max_users}
+                    <span className="font-medium text-xs">
+                      {plan.max_users === -1 ? '∞' : plan.max_users}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground flex items-center gap-2">
-                      <ShoppingBag className="w-4 h-4" />
+                      <ShoppingBag className="w-3.5 h-3.5" />
                       Produtos
                     </span>
-                    <span className="font-medium">
-                      {plan.max_products === -1 ? 'Ilimitado' : plan.max_products}
+                    <span className="font-medium text-xs">
+                      {plan.max_products === -1 ? '∞' : plan.max_products}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5" />
+                      Clientes
+                    </span>
+                    <span className="font-medium text-xs">
+                      {plan.max_customers === -1 ? '∞' : plan.max_customers}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Receipt className="w-3.5 h-3.5" />
+                      Vendas/mes
+                    </span>
+                    <span className="font-medium text-xs">
+                      {plan.max_sales_per_month === -1 ? '∞' : plan.max_sales_per_month}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Monitor className="w-3.5 h-3.5" />
+                      PDVs
+                    </span>
+                    <span className="font-medium text-xs">
+                      {plan.max_pdv_terminals === -1 ? '∞' : plan.max_pdv_terminals}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Store className="w-3.5 h-3.5" />
+                      Lojas
+                    </span>
+                    <span className="font-medium text-xs">
+                      {plan.max_stores === -1 ? '∞' : plan.max_stores}
                     </span>
                   </div>
                 </div>
@@ -529,61 +589,152 @@ export default function AdminPlans() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Max Usuarios (-1 = ilimitado)</Label>
-                  <Input
-                    type="number"
-                    value={editingPlan.max_users}
-                    onChange={(e) =>
-                      setEditingPlan({
-                        ...editingPlan,
-                        max_users: parseInt(e.target.value) || 0,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Max Produtos (-1 = ilimitado)</Label>
-                  <Input
-                    type="number"
-                    value={editingPlan.max_products}
-                    onChange={(e) =>
-                      setEditingPlan({
-                        ...editingPlan,
-                        max_products: parseInt(e.target.value) || 0,
-                      })
-                    }
-                  />
-                </div>
-              </div>
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+                <p className="text-sm font-medium text-muted-foreground">Limites do Plano (-1 = ilimitado)</p>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Max Clientes (-1 = ilimitado)</Label>
-                  <Input
-                    type="number"
-                    value={editingPlan.max_customers || 0}
-                    onChange={(e) =>
-                      setEditingPlan({
-                        ...editingPlan,
-                        max_customers: parseInt(e.target.value) || 0,
-                      })
-                    }
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Usuarios</Label>
+                    <Input
+                      type="number"
+                      value={editingPlan.max_users}
+                      onChange={(e) =>
+                        setEditingPlan({
+                          ...editingPlan,
+                          max_users: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Produtos</Label>
+                    <Input
+                      type="number"
+                      value={editingPlan.max_products}
+                      onChange={(e) =>
+                        setEditingPlan({
+                          ...editingPlan,
+                          max_products: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Max Vendas/Mes (-1 = ilimitado)</Label>
-                  <Input
-                    type="number"
-                    value={editingPlan.max_sales_month || 0}
-                    onChange={(e) =>
-                      setEditingPlan({
-                        ...editingPlan,
-                        max_sales_month: parseInt(e.target.value) || 0,
-                      })
-                    }
-                  />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Clientes</Label>
+                    <Input
+                      type="number"
+                      value={editingPlan.max_customers || 0}
+                      onChange={(e) =>
+                        setEditingPlan({
+                          ...editingPlan,
+                          max_customers: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Vendas/Mes</Label>
+                    <Input
+                      type="number"
+                      value={editingPlan.max_sales_per_month || 0}
+                      onChange={(e) =>
+                        setEditingPlan({
+                          ...editingPlan,
+                          max_sales_per_month: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">PDVs Simultaneos</Label>
+                    <Input
+                      type="number"
+                      value={editingPlan.max_pdv_terminals || 0}
+                      onChange={(e) =>
+                        setEditingPlan({
+                          ...editingPlan,
+                          max_pdv_terminals: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Ordens de Servico/Mes</Label>
+                    <Input
+                      type="number"
+                      value={editingPlan.max_service_orders || 0}
+                      onChange={(e) =>
+                        setEditingPlan({
+                          ...editingPlan,
+                          max_service_orders: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Orcamentos/Mes</Label>
+                    <Input
+                      type="number"
+                      value={editingPlan.max_quotes || 0}
+                      onChange={(e) =>
+                        setEditingPlan({
+                          ...editingPlan,
+                          max_quotes: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Fornecedores</Label>
+                    <Input
+                      type="number"
+                      value={editingPlan.max_suppliers || 0}
+                      onChange={(e) =>
+                        setEditingPlan({
+                          ...editingPlan,
+                          max_suppliers: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Armazenamento (MB)</Label>
+                    <Input
+                      type="number"
+                      value={editingPlan.max_storage_mb || 0}
+                      onChange={(e) =>
+                        setEditingPlan({
+                          ...editingPlan,
+                          max_storage_mb: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Lojas/Filiais</Label>
+                    <Input
+                      type="number"
+                      value={editingPlan.max_stores || 0}
+                      onChange={(e) =>
+                        setEditingPlan({
+                          ...editingPlan,
+                          max_stores: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -724,63 +875,152 @@ export default function AdminPlans() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Max Usuarios</Label>
-                <Input
-                  type="number"
-                  value={newPlan.max_users}
-                  onChange={(e) =>
-                    setNewPlan({
-                      ...newPlan,
-                      max_users: parseInt(e.target.value) || 0,
-                    })
-                  }
-                />
-                <p className="text-xs text-muted-foreground">-1 = ilimitado</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Max Produtos</Label>
-                <Input
-                  type="number"
-                  value={newPlan.max_products}
-                  onChange={(e) =>
-                    setNewPlan({
-                      ...newPlan,
-                      max_products: parseInt(e.target.value) || 0,
-                    })
-                  }
-                />
-                <p className="text-xs text-muted-foreground">-1 = ilimitado</p>
-              </div>
-            </div>
+            <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+              <p className="text-sm font-medium text-muted-foreground">Limites do Plano (-1 = ilimitado)</p>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Max Clientes</Label>
-                <Input
-                  type="number"
-                  value={newPlan.max_customers}
-                  onChange={(e) =>
-                    setNewPlan({
-                      ...newPlan,
-                      max_customers: parseInt(e.target.value) || 0,
-                    })
-                  }
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Usuarios</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.max_users}
+                    onChange={(e) =>
+                      setNewPlan({
+                        ...newPlan,
+                        max_users: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Produtos</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.max_products}
+                    onChange={(e) =>
+                      setNewPlan({
+                        ...newPlan,
+                        max_products: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Max Vendas/Mes</Label>
-                <Input
-                  type="number"
-                  value={newPlan.max_sales_month}
-                  onChange={(e) =>
-                    setNewPlan({
-                      ...newPlan,
-                      max_sales_month: parseInt(e.target.value) || 0,
-                    })
-                  }
-                />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Clientes</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.max_customers}
+                    onChange={(e) =>
+                      setNewPlan({
+                        ...newPlan,
+                        max_customers: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Vendas/Mes</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.max_sales_per_month}
+                    onChange={(e) =>
+                      setNewPlan({
+                        ...newPlan,
+                        max_sales_per_month: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">PDVs Simultaneos</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.max_pdv_terminals}
+                    onChange={(e) =>
+                      setNewPlan({
+                        ...newPlan,
+                        max_pdv_terminals: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Ordens de Servico/Mes</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.max_service_orders}
+                    onChange={(e) =>
+                      setNewPlan({
+                        ...newPlan,
+                        max_service_orders: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Orcamentos/Mes</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.max_quotes}
+                    onChange={(e) =>
+                      setNewPlan({
+                        ...newPlan,
+                        max_quotes: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Fornecedores</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.max_suppliers}
+                    onChange={(e) =>
+                      setNewPlan({
+                        ...newPlan,
+                        max_suppliers: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Armazenamento (MB)</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.max_storage_mb}
+                    onChange={(e) =>
+                      setNewPlan({
+                        ...newPlan,
+                        max_storage_mb: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Lojas/Filiais</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.max_stores}
+                    onChange={(e) =>
+                      setNewPlan({
+                        ...newPlan,
+                        max_stores: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
               </div>
             </div>
 

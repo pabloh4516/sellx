@@ -22,6 +22,8 @@ import {
 } from '@/components/nexo';
 import { USER_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/config/permissions';
 import { supabase } from '@/lib/supabase';
+import { usePlanLimits } from '@/hooks/usePlanLimits';
+import LimitAlert from '@/components/billing/LimitAlert';
 
 // Roles que podem ser atribuídos a funcionários (exclui super_admin e owner)
 const ASSIGNABLE_ROLES = [
@@ -34,6 +36,7 @@ const ASSIGNABLE_ROLES = [
 
 export default function Users() {
   const { user: currentUser, isAdmin, logAuditAction } = useAuth();
+  const { checkLimitAndNotify, getUsageSummary, refreshUsage } = usePlanLimits();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -159,14 +162,6 @@ export default function Users() {
           return;
         }
 
-        // Gerar email interno se usar login simplificado
-        let userEmail = formData.email;
-        if (formData.use_simple_login && formData.employee_code) {
-          // Gerar email interno: codigo.org_id@internal.sellx.local
-          const orgIdShort = currentProfile.organization_id.substring(0, 8);
-          userEmail = `${formData.employee_code.toLowerCase()}.${orgIdShort}@internal.sellx.local`;
-        }
-
         // Verificar se codigo ja existe na organizacao (se usar login simplificado)
         if (formData.use_simple_login && formData.employee_code) {
           const { data: existingCode } = await supabase
@@ -182,93 +177,129 @@ export default function Users() {
           }
         }
 
-        // Criar usuario no Supabase Auth
-        // Se usar PIN sem senha, gerar senha valida para o Supabase (minimo 6 chars)
-        let authPassword = formData.password;
-        if (!authPassword && formData.pin) {
-          // Usar PIN + sufixo para garantir 6+ caracteres
-          authPassword = formData.pin + '@Pin';
-        }
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: userEmail,
-          password: authPassword,
-          options: {
-            data: {
-              full_name: formData.full_name,
-              role: formData.role,
-            },
-            emailRedirectTo: `${window.location.origin}/Login`,
-          },
-        });
+        // Se usar login simplificado (codigo/PIN), criar apenas o profile
+        // Sem criar usuario no Supabase Auth (evita necessidade de email)
+        if (formData.use_simple_login) {
+          // Gerar um UUID para o funcionario
+          const newUserId = crypto.randomUUID();
 
-        if (authError) {
-          console.error('Auth error:', authError);
-          if (authError.message.includes('already registered')) {
-            toast.error('Este email ja esta cadastrado');
-          } else {
-            toast.error('Erro ao criar usuario: ' + authError.message);
-          }
-          return;
-        }
-
-        if (!authData.user) {
-          toast.error('Erro ao criar usuario');
-          return;
-        }
-
-        // Aguardar um pouco para o trigger do Supabase criar o profile base
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Atualizar perfil do usuario com os dados completos
-        // Usar UPDATE ao inves de UPSERT para evitar conflitos com o trigger
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            full_name: formData.full_name,
-            email: userEmail,
-            phone: formData.phone,
-            role: formData.role,
-            is_active: formData.is_active,
-            organization_id: currentProfile.organization_id,
-            employee_code: formData.use_simple_login ? formData.employee_code : null,
-            pin: formData.pin || null,
-          })
-          .eq('id', authData.user.id);
-
-        if (profileError) {
-          console.error('Profile error:', profileError);
-          // Tentar inserir se update falhou (profile ainda nao existe)
           const { error: insertError } = await supabase
             .from('profiles')
             .insert({
-              id: authData.user.id,
+              id: newUserId,
               full_name: formData.full_name,
-              email: userEmail,
+              email: null, // Sem email para login simplificado
               phone: formData.phone,
               role: formData.role,
               is_active: formData.is_active,
               organization_id: currentProfile.organization_id,
-              employee_code: formData.use_simple_login ? formData.employee_code : null,
+              employee_code: formData.employee_code,
               pin: formData.pin || null,
             });
 
           if (insertError) {
             console.error('Insert error:', insertError);
-            toast.warning('Usuario criado, mas houve um erro ao salvar o perfil');
+            toast.error('Erro ao criar funcionario: ' + insertError.message);
+            return;
           }
-        }
 
-        await logAuditAction('USER_CREATE', {
-          user_id: authData.user.id,
-          user_name: formData.full_name,
-          role: formData.role,
-          employee_code: formData.use_simple_login ? formData.employee_code : null,
-        });
+          await logAuditAction('USER_CREATE', {
+            user_id: newUserId,
+            user_name: formData.full_name,
+            role: formData.role,
+            employee_code: formData.employee_code,
+          });
 
-        if (formData.use_simple_login) {
           toast.success(`Funcionario criado! Login: ${formData.employee_code}`);
+          refreshUsage(); // Atualizar contagem de uso
         } else {
+          // Criar usuario com email real via Supabase Auth
+          if (!formData.email) {
+            toast.error('Email e obrigatorio para usuarios sem login simplificado');
+            return;
+          }
+
+          if (!formData.password || formData.password.length < 6) {
+            toast.error('Senha deve ter no minimo 6 caracteres');
+            return;
+          }
+
+          const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: formData.email,
+            password: formData.password,
+            options: {
+              data: {
+                full_name: formData.full_name,
+                role: formData.role,
+              },
+              emailRedirectTo: `${window.location.origin}/Login`,
+            },
+          });
+
+          if (authError) {
+            console.error('Auth error:', authError);
+            if (authError.message.includes('already registered')) {
+              toast.error('Este email ja esta cadastrado');
+            } else {
+              toast.error('Erro ao criar usuario: ' + authError.message);
+            }
+            return;
+          }
+
+          if (!authData.user) {
+            toast.error('Erro ao criar usuario');
+            return;
+          }
+
+          // Aguardar um pouco para o trigger do Supabase criar o profile base
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          // Atualizar perfil do usuario com os dados completos
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
+              full_name: formData.full_name,
+              email: formData.email,
+              phone: formData.phone,
+              role: formData.role,
+              is_active: formData.is_active,
+              organization_id: currentProfile.organization_id,
+              employee_code: null,
+              pin: formData.pin || null,
+            })
+            .eq('id', authData.user.id);
+
+          if (profileError) {
+            console.error('Profile error:', profileError);
+            // Tentar inserir se update falhou
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: authData.user.id,
+                full_name: formData.full_name,
+                email: formData.email,
+                phone: formData.phone,
+                role: formData.role,
+                is_active: formData.is_active,
+                organization_id: currentProfile.organization_id,
+                employee_code: null,
+                pin: formData.pin || null,
+              });
+
+            if (insertError) {
+              console.error('Insert error:', insertError);
+              toast.warning('Usuario criado, mas houve um erro ao salvar o perfil');
+            }
+          }
+
+          await logAuditAction('USER_CREATE', {
+            user_id: authData.user.id,
+            user_name: formData.full_name,
+            role: formData.role,
+          });
+
           toast.success('Usuario criado! Um email de confirmacao foi enviado.');
+          refreshUsage(); // Atualizar contagem de uso
         }
       }
 
@@ -400,6 +431,9 @@ export default function Users() {
   };
 
   const openNewDialog = () => {
+    // Verificar limite de usuarios do plano
+    if (!checkLimitAndNotify('users')) return;
+
     setSelectedUser(null);
     resetForm();
     setShowDialog(true);
@@ -480,6 +514,19 @@ export default function Users() {
           </Button>
         }
       />
+
+      {/* Alerta de limite */}
+      {(() => {
+        const summary = getUsageSummary('users');
+        return (
+          <LimitAlert
+            limitKey="users"
+            label={summary.label}
+            current={users.length}
+            limit={summary.limit}
+          />
+        );
+      })()}
 
       {/* Busca */}
       <CardSection>

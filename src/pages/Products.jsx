@@ -16,6 +16,8 @@ import {
 import { format } from 'date-fns';
 import { ExportMenu } from '@/components/ui/export-menu';
 import { useSafeLoading } from '@/components/ui/safe-loading';
+import { usePlanLimits } from '@/hooks/usePlanLimits';
+import LimitAlert from '@/components/billing/LimitAlert';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,6 +66,7 @@ export default function Products() {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading, isTimeout] = useSafeLoading(true, 20000); // 20s timeout
   const [saving, setSaving] = useState(false);
+  const { checkLimitAndNotify, getUsageSummary, refreshUsage } = usePlanLimits();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGroup, setFilterGroup] = useState('all');
   const [filterStock, setFilterStock] = useState('all'); // all, zero, low, ok
@@ -157,6 +160,7 @@ export default function Products() {
       } else {
         await base44.entities.Product.create(cleanData);
         showSuccessToast('Produto cadastrado', `"${formData.name}" foi adicionado ao catalogo.`);
+        refreshUsage(); // Atualizar contagem de uso do plano
       }
       setShowForm(false);
       resetForm();
@@ -206,6 +210,7 @@ export default function Products() {
       await base44.entities.Product.delete(product.id);
       showSuccessToast('Produto excluido', `"${product.name}" foi removido do catalogo.`);
       loadData();
+      refreshUsage(); // Atualizar contagem de uso do plano
     } catch (error) {
       console.error('Error deleting product:', error);
       showErrorToast(error);
@@ -459,13 +464,30 @@ export default function Products() {
               <FileSpreadsheet className="w-4 h-4" />
               Importar
             </Button>
-            <Button onClick={() => { resetForm(); setShowForm(true); }} className="gap-2">
+            <Button onClick={() => {
+              if (!checkLimitAndNotify('products')) return;
+              resetForm();
+              setShowForm(true);
+            }} className="gap-2">
               <Plus className="w-4 h-4" />
               Novo Produto
             </Button>
           </div>
         }
       />
+
+      {/* Alerta de limite */}
+      {(() => {
+        const summary = getUsageSummary('products');
+        return (
+          <LimitAlert
+            limitKey="products"
+            label={summary.label}
+            current={products.length}
+            limit={summary.limit}
+          />
+        );
+      })()}
 
       {/* Metricas */}
       <Grid cols={4}>
