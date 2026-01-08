@@ -98,6 +98,9 @@ export default function AdminUsers() {
   const filterUsers = () => {
     let filtered = [...users];
 
+    // Ocultar super_admins da lista (sao admins da plataforma, nao usuarios do sistema)
+    filtered = filtered.filter((user) => user.role !== 'super_admin');
+
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -263,7 +266,6 @@ export default function AdminUsers() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os cargos</SelectItem>
-                <SelectItem value="super_admin">Super Admin</SelectItem>
                 <SelectItem value="owner">Proprietario</SelectItem>
                 <SelectItem value="admin">Administrador</SelectItem>
                 <SelectItem value="gerente">Gerente</SelectItem>
