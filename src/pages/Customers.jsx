@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'sonner';
+import { CPFCNPJInput, PhoneInput, CEPInput } from '@/components/ui/masked-input';
+import { showSuccessToast, showErrorToast } from '@/utils/errorMessages';
 import {
   Plus, Search, Edit, Trash2, User, Phone, Mail,
   History, MoreVertical, Users, Star, Crown, Percent,
@@ -46,6 +47,7 @@ export default function Customers() {
   const [showHistory, setShowHistory] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     cpf_cnpj: '',
@@ -83,7 +85,7 @@ export default function Customers() {
       setInstallments(installmentsData);
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Erro ao carregar dados');
+      showErrorToast(error);
     } finally {
       setLoading(false);
     }
@@ -93,10 +95,11 @@ export default function Customers() {
     e.preventDefault();
 
     if (!formData.name) {
-      toast.error('Nome e obrigatorio');
+      showErrorToast({ code: 'REQUIRED_FIELD' });
       return;
     }
 
+    setSaving(true);
     try {
       // Limpar dados - converter strings vazias em null
       const cleanData = { ...formData };
@@ -112,17 +115,25 @@ export default function Customers() {
 
       if (editingCustomer) {
         await base44.entities.Customer.update(editingCustomer.id, cleanData);
-        toast.success('Cliente atualizado');
+        showSuccessToast(
+          'Cliente atualizado!',
+          `Os dados de "${formData.name}" foram salvos com sucesso.`
+        );
       } else {
         await base44.entities.Customer.create(cleanData);
-        toast.success('Cliente cadastrado');
+        showSuccessToast(
+          'Cliente cadastrado!',
+          `"${formData.name}" foi adicionado a sua base de clientes.`
+        );
       }
       setShowForm(false);
       resetForm();
       loadData();
     } catch (error) {
       console.error('Error saving customer:', error);
-      toast.error('Erro ao salvar cliente');
+      showErrorToast(error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -156,11 +167,14 @@ export default function Customers() {
 
     try {
       await base44.entities.Customer.delete(customer.id);
-      toast.success('Cliente excluido');
+      showSuccessToast(
+        'Cliente excluido!',
+        `"${customer.name}" foi removido da sua base de clientes.`
+      );
       loadData();
     } catch (error) {
       console.error('Error deleting customer:', error);
-      toast.error('Erro ao excluir cliente');
+      showErrorToast(error);
     }
   };
 
@@ -176,10 +190,10 @@ export default function Customers() {
     try {
       const result = await base44.integrations.Core.UploadFile({ file });
       setFormData({ ...formData, photo_url: result.file_url });
-      toast.success('Foto enviada');
+      showSuccessToast('Foto enviada!', 'A imagem foi carregada com sucesso.');
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast.error('Erro ao enviar foto');
+      showErrorToast(error);
     }
   };
 
@@ -622,7 +636,18 @@ export default function Customers() {
           columns={columns}
           keyExtractor={(item) => item.id}
           loading={loading}
-          emptyMessage="Nenhum cliente encontrado"
+          emptyContext={searchTerm ? 'search' : 'customers'}
+          emptyMessage={searchTerm ? 'Nenhum cliente encontrado' : undefined}
+          emptyDescription={searchTerm ? `Nenhum resultado para "${searchTerm}"` : undefined}
+          emptyActionLabel={searchTerm ? 'Limpar busca' : 'Cadastrar Cliente'}
+          onEmptyAction={() => {
+            if (searchTerm) {
+              setSearchTerm('');
+            } else {
+              resetForm();
+              setShowForm(true);
+            }
+          }}
         />
       </CardSection>
 
@@ -670,7 +695,7 @@ export default function Customers() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label>CPF/CNPJ</Label>
-                        <Input
+                        <CPFCNPJInput
                           value={formData.cpf_cnpj}
                           onChange={(e) => setFormData({...formData, cpf_cnpj: e.target.value})}
                         />
@@ -713,14 +738,14 @@ export default function Customers() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Telefone</Label>
-                    <Input
+                    <PhoneInput
                       value={formData.phone}
                       onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     />
                   </div>
                   <div>
                     <Label>WhatsApp</Label>
-                    <Input
+                    <PhoneInput
                       value={formData.whatsapp}
                       onChange={(e) => setFormData({...formData, whatsapp: e.target.value})}
                     />
@@ -768,7 +793,7 @@ export default function Customers() {
 
                 <div>
                   <Label>CEP</Label>
-                  <Input
+                  <CEPInput
                     value={formData.zip_code}
                     onChange={(e) => setFormData({...formData, zip_code: e.target.value})}
                   />
@@ -844,11 +869,11 @@ export default function Customers() {
             </Tabs>
 
             <DialogFooter className="mt-6">
-              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)} disabled={saving}>
                 Cancelar
               </Button>
-              <Button type="submit">
-                {editingCustomer ? 'Salvar' : 'Cadastrar'}
+              <Button type="submit" loading={saving} loadingText="Salvando...">
+                {editingCustomer ? 'Salvar Alteracoes' : 'Cadastrar Cliente'}
               </Button>
             </DialogFooter>
           </form>

@@ -1132,7 +1132,7 @@ export default function Dashboard() {
           data={stats.recentSales}
           columns={salesColumns}
           keyExtractor={(sale) => sale.id}
-          emptyMessage="Nenhuma venda registrada"
+          emptyContext="sales"
         />
       </Section>
 

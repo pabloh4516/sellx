@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { toast } from 'sonner';
+import { showSuccessToast, showErrorToast } from '@/utils/errorMessages';
 import {
   Wallet, DollarSign, TrendingUp, AlertCircle,
   Minus, Lock, Unlock, ArrowUpCircle, ArrowDownCircle, Clock, User,
@@ -145,7 +145,7 @@ export default function CashRegister() {
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Erro ao carregar dados');
+      showErrorToast(error);
     } finally {
       setLoading(false);
     }
@@ -172,10 +172,10 @@ export default function CashRegister() {
         opening_balance: openingBalance,
       });
 
-      toast.success('Caixa aberto com sucesso!');
+      showSuccessToast('Caixa aberto', 'O caixa foi aberto e esta pronto para vendas.');
     } catch (error) {
       console.error('Error opening cash register:', error);
-      toast.error('Erro ao abrir caixa');
+      showErrorToast(error);
     }
   };
 
@@ -211,17 +211,17 @@ export default function CashRegister() {
       setSales([]);
       setShowCloseDialog(false);
       setClosingBalance(0);
-      toast.success('Caixa fechado com sucesso!');
+      showSuccessToast('Caixa fechado', 'O fechamento do caixa foi concluido com sucesso.');
       loadData();
     } catch (error) {
       console.error('Error closing cash register:', error);
-      toast.error('Erro ao fechar caixa');
+      showErrorToast(error);
     }
   };
 
   const handleWithdrawal = async () => {
     if (withdrawalData.amount <= 0 || !withdrawalData.reason) {
-      toast.error('Informe o valor e motivo da sangria');
+      showErrorToast({ code: 'REQUIRED_FIELD', message: 'Informe o valor e motivo da sangria' });
       return;
     }
 
@@ -247,16 +247,16 @@ export default function CashRegister() {
       setCashMovements([...cashMovements, movement]);
       setShowWithdrawalDialog(false);
       setWithdrawalData({ amount: 0, reason: '' });
-      toast.success('Sangria registrada');
+      showSuccessToast('Sangria registrada', `Retirada de ${formatCurrency(withdrawalData.amount)} realizada.`);
     } catch (error) {
       console.error('Error registering withdrawal:', error);
-      toast.error('Erro ao registrar sangria');
+      showErrorToast(error);
     }
   };
 
   const handleDeposit = async () => {
     if (depositData.amount <= 0 || !depositData.reason) {
-      toast.error('Informe o valor e motivo do suprimento');
+      showErrorToast({ code: 'REQUIRED_FIELD', message: 'Informe o valor e motivo do suprimento' });
       return;
     }
 
@@ -282,10 +282,10 @@ export default function CashRegister() {
       setCashMovements([...cashMovements, movement]);
       setShowDepositDialog(false);
       setDepositData({ amount: 0, reason: '' });
-      toast.success('Suprimento registrado');
+      showSuccessToast('Suprimento registrado', `Entrada de ${formatCurrency(depositData.amount)} realizada.`);
     } catch (error) {
       console.error('Error registering deposit:', error);
-      toast.error('Erro ao registrar suprimento');
+      showErrorToast(error);
     }
   };
 

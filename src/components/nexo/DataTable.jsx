@@ -2,6 +2,8 @@ import { cn } from '@/lib/utils';
 import { ChevronRight, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { SkeletonTable, SkeletonCardList } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 
 // ============================================================================
 // DATA TABLE - Tabela de dados moderna com suporte mobile
@@ -13,6 +15,10 @@ export function DataTable({
   keyExtractor = (item) => item.id,
   onRowClick,
   emptyMessage = 'Nenhum dado encontrado',
+  emptyDescription,
+  emptyContext, // 'products', 'customers', 'sales', 'search', etc
+  emptyActionLabel,
+  onEmptyAction,
   loading = false,
   className,
   mobileCardRender, // Funcao custom para renderizar card mobile
@@ -21,25 +27,31 @@ export function DataTable({
   const isMobile = useIsMobile();
 
   if (loading) {
+    // Mostrar skeleton em vez de spinner
+    if (isMobile) {
+      return <SkeletonCardList count={5} className={className} />;
+    }
     return (
-      <div className={cn('bg-card rounded-xl border border-border overflow-hidden', className)}>
-        <div className="p-6 sm:p-8 text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
+      <SkeletonTable
+        rows={6}
+        columns={columns?.length || 5}
+        className={className}
+      />
     );
   }
 
-  if (data.length === 0) {
+  if (!data || data.length === 0) {
     return (
       <div className={cn('bg-card rounded-xl border border-border overflow-hidden', className)}>
-        <div className="p-6 sm:p-8 text-center">
-          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-            <Search className="w-5 h-5 text-muted-foreground" />
-          </div>
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-        </div>
+        <EmptyState
+          context={emptyContext}
+          title={emptyMessage}
+          description={emptyDescription}
+          actionLabel={emptyActionLabel}
+          onAction={onEmptyAction}
+          variant="inline"
+          size="default"
+        />
       </div>
     );
   }

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -12,6 +13,28 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   CreditCard,
   Search,
@@ -23,16 +46,27 @@ import {
   Clock,
   Calendar,
   DollarSign,
+  MoreVertical,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  XCircle,
+  Loader2,
+  Package,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
 
 export default function AdminSubscriptions() {
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [organizations, setOrganizations] = useState([]);
   const [filteredOrgs, setFilteredOrgs] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [plans, setPlans] = useState([]);
+  const [changePlanOpen, setChangePlanOpen] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState(null);
+  const [newPlan, setNewPlan] = useState('');
 
   useEffect(() => {
     loadData();
@@ -40,7 +74,7 @@ export default function AdminSubscriptions() {
 
   useEffect(() => {
     filterData();
-  }, [organizations, searchTerm]);
+  }, [organizations, searchTerm, statusFilter]);
 
   const loadData = async () => {
     setLoading(true);
@@ -69,10 +103,101 @@ export default function AdminSubscriptions() {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter((org) =>
-        org.name?.toLowerCase().includes(term)
+        org.name?.toLowerCase().includes(term) ||
+        org.email?.toLowerCase().includes(term)
       );
     }
+    if (statusFilter === 'paying') {
+      filtered = filtered.filter((org) => org.plan && org.plan !== 'free');
+    } else if (statusFilter === 'free') {
+      filtered = filtered.filter((org) => !org.plan || org.plan === 'free');
+    }
     setFilteredOrgs(filtered);
+  };
+
+  const handleChangePlan = (org) => {
+    setSelectedOrg(org);
+    setNewPlan(org.plan || 'free');
+    setChangePlanOpen(true);
+  };
+
+  const handleSavePlan = async () => {
+    if (!selectedOrg) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({
+          plan: newPlan,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', selectedOrg.id);
+
+      if (error) throw error;
+
+      // Also update/create subscription record if table exists
+      try {
+        const planInfo = plans.find(p => p.slug === newPlan);
+        if (planInfo) {
+          // Check if subscription exists
+          const { data: existingSub } = await supabase
+            .from('subscriptions')
+            .select('id')
+            .eq('organization_id', selectedOrg.id)
+            .single();
+
+          if (existingSub) {
+            await supabase
+              .from('subscriptions')
+              .update({
+                plan_id: planInfo.id,
+                status: 'active',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingSub.id);
+          } else {
+            await supabase
+              .from('subscriptions')
+              .insert({
+                organization_id: selectedOrg.id,
+                plan_id: planInfo.id,
+                status: 'active',
+              });
+          }
+        }
+      } catch {
+        // Subscriptions table might not exist or have different structure
+      }
+
+      toast.success('Plano alterado com sucesso');
+      setChangePlanOpen(false);
+      setSelectedOrg(null);
+      loadData();
+    } catch (error) {
+      console.error('Error changing plan:', error);
+      toast.error('Erro ao alterar plano');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleOrgStatus = async (org) => {
+    try {
+      const newStatus = !org.is_active;
+      const { error } = await supabase
+        .from('organizations')
+        .update({ is_active: newStatus })
+        .eq('id', org.id);
+
+      if (error) throw error;
+
+      toast.success(newStatus ? 'Organizacao ativada' : 'Organizacao desativada');
+      loadData();
+    } catch (error) {
+      console.error('Error toggling org status:', error);
+      toast.error('Erro ao alterar status');
+    }
   };
 
   const getPlanInfo = (planSlug) => {
@@ -176,17 +301,29 @@ export default function AdminSubscriptions() {
         </Card>
       </div>
 
-      {/* Search */}
+      {/* Search & Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar organizacao..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome ou email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filtrar por status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="paying">Pagantes</SelectItem>
+                <SelectItem value="free">Gratuitos</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -202,19 +339,20 @@ export default function AdminSubscriptions() {
                 <TableHead>Valor Mensal</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Inicio</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <RefreshCcw className="w-6 h-6 animate-spin mx-auto mb-2" />
                     <p className="text-muted-foreground">Carregando...</p>
                   </TableCell>
                 </TableRow>
               ) : filteredOrgs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <CreditCard className="w-12 h-12 mx-auto mb-2 text-muted-foreground opacity-50" />
                     <p className="text-muted-foreground">Nenhuma assinatura encontrada</p>
                   </TableCell>
@@ -240,7 +378,7 @@ export default function AdminSubscriptions() {
                         {formatCurrency(planInfo.price_monthly)}
                       </TableCell>
                       <TableCell>
-                        {org.is_active ? (
+                        {org.is_active !== false ? (
                           <Badge className="bg-green-100 text-green-700">Ativo</Badge>
                         ) : (
                           <Badge variant="secondary">Inativo</Badge>
@@ -248,6 +386,35 @@ export default function AdminSubscriptions() {
                       </TableCell>
                       <TableCell>
                         {new Date(org.created_at).toLocaleDateString('pt-BR')}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleChangePlan(org)}>
+                              <Package className="w-4 h-4 mr-2" />
+                              Alterar plano
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => toggleOrgStatus(org)}>
+                              {org.is_active !== false ? (
+                                <>
+                                  <XCircle className="w-4 h-4 mr-2" />
+                                  Desativar
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="w-4 h-4 mr-2" />
+                                  Ativar
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );
@@ -257,6 +424,99 @@ export default function AdminSubscriptions() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Change Plan Dialog */}
+      <Dialog open={changePlanOpen} onOpenChange={setChangePlanOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Alterar Plano</DialogTitle>
+            <DialogDescription>
+              Selecione o novo plano para esta organizacao
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrg && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">{selectedOrg.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Plano atual: {getPlanBadge(selectedOrg.plan)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Novo Plano</Label>
+                <Select value={newPlan} onValueChange={setNewPlan}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o plano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plans.map((plan) => (
+                      <SelectItem key={plan.id} value={plan.slug}>
+                        <div className="flex items-center justify-between gap-4">
+                          <span>{plan.name}</span>
+                          <span className="text-muted-foreground">
+                            {formatCurrency(plan.price_monthly)}/mes
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {newPlan && newPlan !== (selectedOrg.plan || 'free') && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                  <p className="text-sm text-amber-800">
+                    {(() => {
+                      const currentPlan = getPlanInfo(selectedOrg.plan);
+                      const nextPlan = getPlanInfo(newPlan);
+                      const diff = nextPlan.price_monthly - currentPlan.price_monthly;
+                      if (diff > 0) {
+                        return (
+                          <>
+                            <ArrowUpCircle className="w-4 h-4 inline mr-1" />
+                            Upgrade: +{formatCurrency(diff)}/mes
+                          </>
+                        );
+                      } else if (diff < 0) {
+                        return (
+                          <>
+                            <ArrowDownCircle className="w-4 h-4 inline mr-1" />
+                            Downgrade: {formatCurrency(diff)}/mes
+                          </>
+                        );
+                      }
+                      return 'Mesmo valor';
+                    })()}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChangePlanOpen(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSavePlan} disabled={saving || newPlan === (selectedOrg?.plan || 'free')}>
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Alterando...
+                </>
+              ) : (
+                'Confirmar Alteracao'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

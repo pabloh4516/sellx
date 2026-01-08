@@ -51,13 +51,29 @@ import {
   MapPin,
   RefreshCcw,
   Download,
-  Filter,
+  Plus,
+  Trash2,
+  ShoppingCart,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
 
+const initialFormData = {
+  name: '',
+  email: '',
+  phone: '',
+  cnpj: '',
+  city: '',
+  state: '',
+  plan: 'free',
+  max_users: 1,
+  max_products: 100,
+  is_active: true,
+};
+
 export default function AdminOrganizations() {
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [organizations, setOrganizations] = useState([]);
   const [filteredOrgs, setFilteredOrgs] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -65,6 +81,10 @@ export default function AdminOrganizations() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrg, setSelectedOrg] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [formData, setFormData] = useState(initialFormData);
   const [plans, setPlans] = useState([]);
 
   useEffect(() => {
@@ -89,24 +109,45 @@ export default function AdminOrganizations() {
       // Carregar planos
       const { data: plansData } = await supabase
         .from('plans')
-        .select('*');
+        .select('*')
+        .order('price_monthly', { ascending: true });
 
-      // Carregar contagem de usuarios por organizacao
-      const orgsWithUsers = await Promise.all(
+      // Carregar estatisticas de cada organizacao
+      const orgsWithStats = await Promise.all(
         (orgsData || []).map(async (org) => {
-          const { count } = await supabase
+          // Contagem de usuarios
+          const { count: usersCount } = await supabase
             .from('profiles')
             .select('*', { count: 'exact', head: true })
             .eq('organization_id', org.id);
 
+          // Contagem de produtos
+          const { count: productsCount } = await supabase
+            .from('products')
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', org.id);
+
+          // Contagem de vendas do mes
+          const startOfMonth = new Date();
+          startOfMonth.setDate(1);
+          startOfMonth.setHours(0, 0, 0, 0);
+
+          const { count: salesCount } = await supabase
+            .from('sales')
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', org.id)
+            .gte('created_at', startOfMonth.toISOString());
+
           return {
             ...org,
-            users_count: count || 0,
+            users_count: usersCount || 0,
+            products_count: productsCount || 0,
+            sales_month: salesCount || 0,
           };
         })
       );
 
-      setOrganizations(orgsWithUsers);
+      setOrganizations(orgsWithStats);
       setPlans(plansData || []);
     } catch (error) {
       console.error('Error loading organizations:', error);
@@ -140,6 +181,114 @@ export default function AdminOrganizations() {
     }
 
     setFilteredOrgs(filtered);
+  };
+
+  const handleCreateOrg = async () => {
+    if (!formData.name) {
+      toast.error('Nome e obrigatorio');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const plan = plans.find((p) => p.slug === formData.plan);
+
+      const { data, error } = await supabase
+        .from('organizations')
+        .insert({
+          name: formData.name,
+          email: formData.email || null,
+          phone: formData.phone || null,
+          cnpj: formData.cnpj || null,
+          city: formData.city || null,
+          state: formData.state || null,
+          plan: formData.plan,
+          max_users: plan?.max_users || formData.max_users,
+          max_products: plan?.max_products || formData.max_products,
+          is_active: formData.is_active,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success('Organizacao criada com sucesso!');
+      setCreateOpen(false);
+      setFormData(initialFormData);
+      loadData();
+    } catch (error) {
+      console.error('Error creating organization:', error);
+      toast.error('Erro ao criar organizacao');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditOrg = async () => {
+    if (!formData.name) {
+      toast.error('Nome e obrigatorio');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const plan = plans.find((p) => p.slug === formData.plan);
+
+      const { error } = await supabase
+        .from('organizations')
+        .update({
+          name: formData.name,
+          email: formData.email || null,
+          phone: formData.phone || null,
+          cnpj: formData.cnpj || null,
+          city: formData.city || null,
+          state: formData.state || null,
+          plan: formData.plan,
+          max_users: formData.max_users,
+          max_products: formData.max_products,
+          is_active: formData.is_active,
+        })
+        .eq('id', selectedOrg.id);
+
+      if (error) throw error;
+
+      toast.success('Organizacao atualizada!');
+      setEditOpen(false);
+      setSelectedOrg(null);
+      setFormData(initialFormData);
+      loadData();
+    } catch (error) {
+      console.error('Error updating organization:', error);
+      toast.error('Erro ao atualizar organizacao');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteOrg = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .delete()
+        .eq('id', selectedOrg.id);
+
+      if (error) throw error;
+
+      toast.success('Organizacao excluida!');
+      setDeleteOpen(false);
+      setSelectedOrg(null);
+      loadData();
+    } catch (error) {
+      console.error('Error deleting organization:', error);
+      if (error.message?.includes('foreign key')) {
+        toast.error('Nao e possivel excluir: organizacao possui dados vinculados');
+      } else {
+        toast.error('Erro ao excluir organizacao');
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleOrgStatus = async (org) => {
@@ -184,6 +333,23 @@ export default function AdminOrganizations() {
     }
   };
 
+  const openEditDialog = (org) => {
+    setSelectedOrg(org);
+    setFormData({
+      name: org.name || '',
+      email: org.email || '',
+      phone: org.phone || '',
+      cnpj: org.cnpj || '',
+      city: org.city || '',
+      state: org.state || '',
+      plan: org.plan || 'free',
+      max_users: org.max_users || 1,
+      max_products: org.max_products || 100,
+      is_active: org.is_active !== false,
+    });
+    setEditOpen(true);
+  };
+
   const getPlanBadge = (plan) => {
     const colors = {
       free: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
@@ -205,13 +371,14 @@ export default function AdminOrganizations() {
   };
 
   const exportToCSV = () => {
-    const headers = ['Nome', 'Email', 'CNPJ', 'Plano', 'Usuarios', 'Status', 'Criado em'];
+    const headers = ['Nome', 'Email', 'CNPJ', 'Plano', 'Usuarios', 'Produtos', 'Status', 'Criado em'];
     const rows = filteredOrgs.map((org) => [
       org.name,
       org.email || '',
       org.cnpj || '',
       org.plan,
       org.users_count,
+      org.products_count,
       org.is_active ? 'Ativo' : 'Inativo',
       new Date(org.created_at).toLocaleDateString('pt-BR'),
     ]);
@@ -224,6 +391,114 @@ export default function AdminOrganizations() {
     a.download = 'organizacoes.csv';
     a.click();
   };
+
+  const OrgForm = ({ isEdit = false }) => (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="col-span-2">
+          <Label>Nome da Empresa *</Label>
+          <Input
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="Nome da empresa"
+          />
+        </div>
+        <div>
+          <Label>Email</Label>
+          <Input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            placeholder="email@empresa.com"
+          />
+        </div>
+        <div>
+          <Label>Telefone</Label>
+          <Input
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            placeholder="(00) 00000-0000"
+          />
+        </div>
+        <div>
+          <Label>CNPJ</Label>
+          <Input
+            value={formData.cnpj}
+            onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
+            placeholder="00.000.000/0000-00"
+          />
+        </div>
+        <div>
+          <Label>Cidade</Label>
+          <Input
+            value={formData.city}
+            onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+            placeholder="Cidade"
+          />
+        </div>
+        <div>
+          <Label>Estado</Label>
+          <Input
+            value={formData.state}
+            onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+            placeholder="UF"
+            maxLength={2}
+          />
+        </div>
+        <div>
+          <Label>Plano</Label>
+          <Select
+            value={formData.plan}
+            onValueChange={(value) => {
+              const plan = plans.find((p) => p.slug === value);
+              setFormData({
+                ...formData,
+                plan: value,
+                max_users: plan?.max_users || 1,
+                max_products: plan?.max_products || 100,
+              });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {plans.map((plan) => (
+                <SelectItem key={plan.slug} value={plan.slug}>
+                  {plan.name} - {formatCurrency(plan.price_monthly)}/mes
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {isEdit && (
+        <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-muted/50">
+          <div>
+            <Label>Max Usuarios</Label>
+            <Input
+              type="number"
+              value={formData.max_users}
+              onChange={(e) => setFormData({ ...formData, max_users: parseInt(e.target.value) || 1 })}
+              min={-1}
+            />
+            <p className="text-xs text-muted-foreground mt-1">-1 = ilimitado</p>
+          </div>
+          <div>
+            <Label>Max Produtos</Label>
+            <Input
+              type="number"
+              value={formData.max_products}
+              onChange={(e) => setFormData({ ...formData, max_products: parseInt(e.target.value) || 100 })}
+              min={-1}
+            />
+            <p className="text-xs text-muted-foreground mt-1">-1 = ilimitado</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -240,9 +515,13 @@ export default function AdminOrganizations() {
             <Download className="w-4 h-4 mr-2" />
             Exportar
           </Button>
-          <Button onClick={loadData} disabled={loading}>
+          <Button onClick={loadData} variant="outline" disabled={loading}>
             <RefreshCcw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
+          </Button>
+          <Button onClick={() => { setFormData(initialFormData); setCreateOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Organizacao
           </Button>
         </div>
       </div>
@@ -359,6 +638,7 @@ export default function AdminOrganizations() {
                 <TableHead>Organizacao</TableHead>
                 <TableHead>Plano</TableHead>
                 <TableHead>Usuarios</TableHead>
+                <TableHead>Produtos</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Criado em</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
@@ -367,14 +647,14 @@ export default function AdminOrganizations() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     <RefreshCcw className="w-6 h-6 animate-spin mx-auto mb-2" />
                     <p className="text-muted-foreground">Carregando...</p>
                   </TableCell>
                 </TableRow>
               ) : filteredOrgs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     <Building2 className="w-12 h-12 mx-auto mb-2 text-muted-foreground opacity-50" />
                     <p className="text-muted-foreground">
                       Nenhuma organizacao encontrada
@@ -405,6 +685,12 @@ export default function AdminOrganizations() {
                       </div>
                     </TableCell>
                     <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Package className="w-4 h-4 text-muted-foreground" />
+                        {org.products_count || 0}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       {org.is_active ? (
                         <Badge className="bg-green-100 text-green-700">Ativo</Badge>
                       ) : (
@@ -431,6 +717,10 @@ export default function AdminOrganizations() {
                             <Eye className="w-4 h-4 mr-2" />
                             Ver detalhes
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditDialog(org)}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => toggleOrgStatus(org)}>
                             {org.is_active ? (
@@ -445,6 +735,17 @@ export default function AdminOrganizations() {
                               </>
                             )}
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => {
+                              setSelectedOrg(org);
+                              setDeleteOpen(true);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -455,6 +756,68 @@ export default function AdminOrganizations() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Create Dialog */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nova Organizacao</DialogTitle>
+            <DialogDescription>
+              Cadastre uma nova empresa na plataforma
+            </DialogDescription>
+          </DialogHeader>
+          <OrgForm />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateOrg} disabled={saving}>
+              {saving ? 'Criando...' : 'Criar Organizacao'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Organizacao</DialogTitle>
+            <DialogDescription>
+              Altere os dados da organizacao
+            </DialogDescription>
+          </DialogHeader>
+          <OrgForm isEdit />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleEditOrg} disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar Alteracoes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Organizacao</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir "{selectedOrg?.name}"? Esta acao nao pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteOrg} disabled={saving}>
+              {saving ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Details Dialog */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
@@ -554,12 +917,12 @@ export default function AdminOrganizations() {
                 </div>
                 <div className="p-4 rounded-lg bg-muted/50 text-center">
                   <Package className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-2xl font-bold">-</p>
+                  <p className="text-2xl font-bold">{selectedOrg.products_count || 0}</p>
                   <p className="text-sm text-muted-foreground">Produtos</p>
                 </div>
                 <div className="p-4 rounded-lg bg-muted/50 text-center">
-                  <Calendar className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-2xl font-bold">-</p>
+                  <ShoppingCart className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-2xl font-bold">{selectedOrg.sales_month || 0}</p>
                   <p className="text-sm text-muted-foreground">Vendas/mes</p>
                 </div>
               </div>
@@ -567,6 +930,10 @@ export default function AdminOrganizations() {
           )}
 
           <DialogFooter>
+            <Button variant="outline" onClick={() => openEditDialog(selectedOrg)}>
+              <Edit className="w-4 h-4 mr-2" />
+              Editar
+            </Button>
             <Button variant="outline" onClick={() => setDetailsOpen(false)}>
               Fechar
             </Button>

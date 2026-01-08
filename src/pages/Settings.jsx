@@ -17,8 +17,55 @@ import {
   Settings as SettingsIcon, Database, Shield, Bell, Users,
   Download, Upload, AlertTriangle, Save, Mail, ShoppingCart, Monitor,
   Barcode, Volume2, VolumeX, Camera, Wallet, Users2, User, Lock, Unlock,
-  Info, CheckCircle2, Percent, Edit2, X, Eye, DollarSign, Tag
+  Info, CheckCircle2, Percent, Edit2, X, Eye, DollarSign, Tag, Search
 } from 'lucide-react';
+
+// Mapa de todas as configurações para busca
+const settingsSearchIndex = [
+  // Geral
+  { id: 'blockSaleNoStock', tab: 'general', label: 'Bloquear venda sem estoque', keywords: ['estoque', 'bloquear', 'venda', 'produto', 'quantidade'] },
+  { id: 'requireCustomer', tab: 'general', label: 'Exigir cliente na venda', keywords: ['cliente', 'obrigatorio', 'venda', 'cpf', 'consumidor'] },
+  { id: 'printAutomatically', tab: 'general', label: 'Imprimir cupom automaticamente', keywords: ['imprimir', 'cupom', 'automatico', 'impressora', 'comprovante'] },
+  { id: 'pdvWaitingMode', tab: 'general', label: 'Modo espera no PDV', keywords: ['espera', 'pdv', 'f2', 'aguardando', 'boas-vindas'] },
+  { id: 'autoBackup', tab: 'general', label: 'Backup automático', keywords: ['backup', 'automatico', 'salvar', 'dados', 'seguranca'] },
+
+  // Caixa
+  { id: 'cashRegisterMode', tab: 'cash', label: 'Modo de operação do caixa', keywords: ['caixa', 'modo', 'operador', 'compartilhado', 'individual'] },
+  { id: 'shared', tab: 'cash', label: 'Caixa compartilhado', keywords: ['compartilhado', 'unico', 'todos', 'operadores'] },
+  { id: 'per_operator', tab: 'cash', label: 'Caixa por operador', keywords: ['individual', 'separado', 'operador', 'funcionario'] },
+
+  // Permissões
+  { id: 'discountLimits', tab: 'permissions', label: 'Limites de desconto', keywords: ['desconto', 'limite', 'porcentagem', 'maximo'] },
+  { id: 'canEditSale', tab: 'permissions', label: 'Permissão para editar venda', keywords: ['editar', 'venda', 'alterar', 'modificar'] },
+  { id: 'canCancelSale', tab: 'permissions', label: 'Permissão para cancelar venda', keywords: ['cancelar', 'venda', 'estorno', 'anular'] },
+  { id: 'canApplyDiscount', tab: 'permissions', label: 'Permissão para dar desconto', keywords: ['desconto', 'aplicar', 'conceder'] },
+  { id: 'canOpenPrice', tab: 'permissions', label: 'Permissão para preço aberto', keywords: ['preco', 'aberto', 'alterar', 'valor'] },
+  { id: 'canViewCost', tab: 'permissions', label: 'Permissão para ver custo', keywords: ['custo', 'ver', 'visualizar', 'preco compra'] },
+  { id: 'canViewProfit', tab: 'permissions', label: 'Permissão para ver lucro', keywords: ['lucro', 'margem', 'ver', 'visualizar'] },
+
+  // PDV/Scanner
+  { id: 'pdvSoundEnabled', tab: 'scanner', label: 'Som do PDV', keywords: ['som', 'audio', 'beep', 'notificacao'] },
+  { id: 'scannerPrefix', tab: 'scanner', label: 'Prefixo do scanner', keywords: ['scanner', 'leitor', 'prefixo', 'codigo barras'] },
+  { id: 'scannerSuffix', tab: 'scanner', label: 'Sufixo do scanner', keywords: ['scanner', 'leitor', 'sufixo', 'codigo barras'] },
+  { id: 'scannerMinLength', tab: 'scanner', label: 'Tamanho mínimo código', keywords: ['scanner', 'minimo', 'tamanho', 'codigo', 'barras'] },
+  { id: 'scannerTimeout', tab: 'scanner', label: 'Timeout do scanner', keywords: ['scanner', 'timeout', 'tempo', 'espera'] },
+  { id: 'scannerEnterAsSubmit', tab: 'scanner', label: 'Enter como submit', keywords: ['enter', 'submit', 'scanner', 'confirmar'] },
+
+  // Notificações
+  { id: 'lowStock', tab: 'notifications', label: 'Notificação de estoque baixo', keywords: ['estoque', 'baixo', 'notificacao', 'alerta', 'minimo'] },
+  { id: 'expiring', tab: 'notifications', label: 'Notificação de validade', keywords: ['validade', 'vencimento', 'expirar', 'notificacao', 'alerta'] },
+  { id: 'overdue', tab: 'notifications', label: 'Notificação de atraso', keywords: ['atraso', 'vencido', 'inadimplente', 'notificacao', 'alerta'] },
+  { id: 'dailyReport', tab: 'notifications', label: 'Relatório diário', keywords: ['relatorio', 'diario', 'email', 'resumo'] },
+
+  // Usuários
+  { id: 'users', tab: 'users', label: 'Gerenciar usuários', keywords: ['usuario', 'funcionario', 'operador', 'adicionar', 'remover'] },
+  { id: 'inviteUser', tab: 'users', label: 'Convidar usuário', keywords: ['convidar', 'adicionar', 'usuario', 'email'] },
+  { id: 'userRole', tab: 'users', label: 'Cargo do usuário', keywords: ['cargo', 'funcao', 'role', 'permissao', 'nivel'] },
+
+  // Backup
+  { id: 'exportData', tab: 'backup', label: 'Exportar dados', keywords: ['exportar', 'backup', 'download', 'dados', 'json'] },
+  { id: 'importData', tab: 'backup', label: 'Importar dados', keywords: ['importar', 'restaurar', 'upload', 'dados', 'json'] },
+];
 import {
   PageContainer,
   PageHeader,
@@ -30,6 +77,34 @@ export default function Settings() {
   const { operator } = useAuth();
   const [user, setUser] = useState(null);
   const [users, setUsers] = useState([]);
+
+  // Estados para busca de configurações
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('general');
+  const [highlightedSetting, setHighlightedSetting] = useState(null);
+
+  // Função para buscar configurações
+  const searchSettings = (query) => {
+    if (!query.trim()) return [];
+    const normalizedQuery = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return settingsSearchIndex.filter(setting => {
+      const labelMatch = setting.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(normalizedQuery);
+      const keywordMatch = setting.keywords.some(kw =>
+        kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(normalizedQuery)
+      );
+      return labelMatch || keywordMatch;
+    });
+  };
+
+  const searchResults = searchQuery ? searchSettings(searchQuery) : [];
+
+  const handleSelectSearchResult = (result) => {
+    setActiveTab(result.tab);
+    setHighlightedSetting(result.id);
+    setSearchQuery('');
+    // Remove highlight após 3 segundos
+    setTimeout(() => setHighlightedSetting(null), 3000);
+  };
 
   // Verificar se pode gerenciar usuarios (owner, admin, manager)
   const canManageUsers = operator?.role && [USER_ROLES.OWNER, USER_ROLES.ADMIN, USER_ROLES.MANAGER].includes(operator.role);
@@ -301,22 +376,87 @@ export default function Settings() {
     );
   }
 
+  // Mapa de nomes das tabs
+  const tabNames = {
+    general: 'Geral',
+    cash: 'Caixa',
+    permissions: 'Permissões',
+    scanner: 'PDV/Scanner',
+    users: 'Usuários',
+    notifications: 'Notificações',
+    backup: 'Backup',
+  };
+
   return (
     <PageContainer className="max-w-6xl">
       <PageHeader
-        title="Configuracoes"
-        subtitle="Gerencie as configuracoes do sistema"
+        title="Configurações"
+        subtitle="Gerencie as configurações do sistema"
         icon={SettingsIcon}
       />
 
-      <Tabs defaultValue="general" className="w-full">
+      {/* Campo de busca de configurações */}
+      <div className="relative mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Buscar configuração... (ex: desconto, estoque, backup)"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 pr-4"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Resultados da busca */}
+        {searchResults.length > 0 && (
+          <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
+            <ScrollArea className="max-h-[300px]">
+              <div className="p-1">
+                {searchResults.map((result) => (
+                  <button
+                    key={result.id}
+                    onClick={() => handleSelectSearchResult(result)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-left rounded-md hover:bg-accent transition-colors"
+                  >
+                    <SettingsIcon className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{result.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Aba: {tabNames[result.tab]}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+
+        {searchQuery && searchResults.length === 0 && (
+          <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg p-4 text-center">
+            <Search className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">Nenhuma configuração encontrada</p>
+          </div>
+        )}
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-7 mb-6">
           <TabsTrigger value="general">Geral</TabsTrigger>
           <TabsTrigger value="cash">Caixa</TabsTrigger>
-          <TabsTrigger value="permissions">Permissoes</TabsTrigger>
+          <TabsTrigger value="permissions">Permissões</TabsTrigger>
           <TabsTrigger value="scanner">PDV/Scanner</TabsTrigger>
-          <TabsTrigger value="users">Usuarios</TabsTrigger>
-          <TabsTrigger value="notifications">Notificacoes</TabsTrigger>
+          <TabsTrigger value="users">Usuários</TabsTrigger>
+          <TabsTrigger value="notifications">Notificações</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
         </TabsList>
 
@@ -329,7 +469,12 @@ export default function Settings() {
             </h3>
 
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div
+                id="setting-blockSaleNoStock"
+                className={`flex items-center justify-between p-3 -mx-3 rounded-lg transition-all ${
+                  highlightedSetting === 'blockSaleNoStock' ? 'bg-primary/10 ring-2 ring-primary animate-pulse' : ''
+                }`}
+              >
                 <div className="space-y-0.5">
                   <Label>Bloquear venda sem estoque</Label>
                   <p className="text-sm text-muted-foreground">
@@ -344,11 +489,16 @@ export default function Settings() {
 
               <Separator />
 
-              <div className="flex items-center justify-between">
+              <div
+                id="setting-requireCustomer"
+                className={`flex items-center justify-between p-3 -mx-3 rounded-lg transition-all ${
+                  highlightedSetting === 'requireCustomer' ? 'bg-primary/10 ring-2 ring-primary animate-pulse' : ''
+                }`}
+              >
                 <div className="space-y-0.5">
                   <Label>Exigir cliente na venda</Label>
                   <p className="text-sm text-muted-foreground">
-                    Torna obrigatorio selecionar um cliente ao vender
+                    Torna obrigatório selecionar um cliente ao vender
                   </p>
                 </div>
                 <Switch
@@ -359,11 +509,16 @@ export default function Settings() {
 
               <Separator />
 
-              <div className="flex items-center justify-between">
+              <div
+                id="setting-printAutomatically"
+                className={`flex items-center justify-between p-3 -mx-3 rounded-lg transition-all ${
+                  highlightedSetting === 'printAutomatically' ? 'bg-primary/10 ring-2 ring-primary animate-pulse' : ''
+                }`}
+              >
                 <div className="space-y-0.5">
                   <Label>Imprimir cupom automaticamente</Label>
                   <p className="text-sm text-muted-foreground">
-                    Abre tela de impressao automaticamente apos venda
+                    Abre tela de impressão automaticamente após venda
                   </p>
                 </div>
                 <Switch
@@ -374,7 +529,12 @@ export default function Settings() {
 
               <Separator />
 
-              <div className="flex items-center justify-between">
+              <div
+                id="setting-pdvWaitingMode"
+                className={`flex items-center justify-between p-3 -mx-3 rounded-lg transition-all ${
+                  highlightedSetting === 'pdvWaitingMode' ? 'bg-primary/10 ring-2 ring-primary animate-pulse' : ''
+                }`}
+              >
                 <div className="space-y-0.5">
                   <Label className="flex items-center gap-2">
                     <Monitor className="w-4 h-4" />
@@ -392,11 +552,16 @@ export default function Settings() {
 
               <Separator />
 
-              <div className="flex items-center justify-between">
+              <div
+                id="setting-autoBackup"
+                className={`flex items-center justify-between p-3 -mx-3 rounded-lg transition-all ${
+                  highlightedSetting === 'autoBackup' ? 'bg-primary/10 ring-2 ring-primary animate-pulse' : ''
+                }`}
+              >
                 <div className="space-y-0.5">
-                  <Label>Backup automatico</Label>
+                  <Label>Backup automático</Label>
                   <p className="text-sm text-muted-foreground">
-                    Realiza backup automatico dos dados semanalmente
+                    Realiza backup automático dos dados semanalmente
                   </p>
                 </div>
                 <Switch
@@ -440,15 +605,21 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div
+                id="setting-cashRegisterMode"
+                className={`grid grid-cols-1 md:grid-cols-2 gap-4 p-2 -mx-2 rounded-lg transition-all ${
+                  highlightedSetting === 'cashRegisterMode' ? 'bg-primary/10 ring-2 ring-primary' : ''
+                }`}
+              >
                 {/* Opcao Compartilhado */}
                 <div
+                  id="setting-shared"
                   onClick={() => setSystemSettings({...systemSettings, cashRegisterMode: 'shared'})}
                   className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${
                     systemSettings.cashRegisterMode === 'shared'
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                  }`}
+                  } ${highlightedSetting === 'shared' ? 'ring-2 ring-primary animate-pulse' : ''}`}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -480,12 +651,13 @@ export default function Settings() {
 
                 {/* Opcao Por Operador */}
                 <div
+                  id="setting-per_operator"
                   onClick={() => setSystemSettings({...systemSettings, cashRegisterMode: 'per_operator'})}
                   className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${
                     systemSettings.cashRegisterMode === 'per_operator'
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                  }`}
+                  } ${highlightedSetting === 'per_operator' ? 'ring-2 ring-primary animate-pulse' : ''}`}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">

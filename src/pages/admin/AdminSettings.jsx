@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,40 +19,137 @@ import {
   Key,
   CreditCard,
   MessageSquare,
+  RefreshCcw,
+  Loader2,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function AdminSettings() {
-  const [saving, setSaving] = useState(false);
-
-  // General Settings
-  const [platformName, setPlatformName] = useState('Sellx');
-  const [platformUrl, setPlatformUrl] = useState('https://sellx.com.br');
-  const [supportEmail, setSupportEmail] = useState('suporte@sellx.com.br');
-
-  // Email Settings
-  const [smtpHost, setSmtpHost] = useState('');
-  const [smtpPort, setSmtpPort] = useState('587');
-  const [smtpUser, setSmtpUser] = useState('');
-  const [smtpPassword, setSmtpPassword] = useState('');
-
+const DEFAULT_SETTINGS = {
+  // General
+  platform_name: 'Sellx',
+  platform_url: 'https://sellx.com.br',
+  support_email: 'suporte@sellx.com.br',
+  // SMTP
+  smtp_host: '',
+  smtp_port: '587',
+  smtp_user: '',
+  smtp_password: '',
   // Notifications
-  const [emailNewOrg, setEmailNewOrg] = useState(true);
-  const [emailNewSubscription, setEmailNewSubscription] = useState(true);
-  const [emailCancelation, setEmailCancelation] = useState(true);
-
+  notify_new_org: true,
+  notify_new_subscription: true,
+  notify_cancelation: true,
   // Features
-  const [allowRegistration, setAllowRegistration] = useState(true);
-  const [requireEmailVerification, setRequireEmailVerification] = useState(true);
-  const [allowGoogleLogin, setAllowGoogleLogin] = useState(false);
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  allow_registration: true,
+  require_email_verification: true,
+  allow_google_login: false,
+  maintenance_mode: false,
+  // Integrations
+  stripe_secret_key: '',
+  stripe_publishable_key: '',
+  stripe_webhook_secret: '',
+  whatsapp_token: '',
+  whatsapp_phone: '',
+};
+
+export default function AdminSettings() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [originalSettings, setOriginalSettings] = useState(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  // Track changes
+  useEffect(() => {
+    const changed = JSON.stringify(settings) !== JSON.stringify(originalSettings);
+    setHasChanges(changed);
+  }, [settings, originalSettings]);
+
+  const loadSettings = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('*')
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 = no rows returned, which is fine for first load
+        console.error('Error loading settings:', error);
+      }
+
+      if (data?.settings) {
+        const loadedSettings = { ...DEFAULT_SETTINGS, ...data.settings };
+        setSettings(loadedSettings);
+        setOriginalSettings(loadedSettings);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
-    // Simular salvamento
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    toast.success('Configuracoes salvas com sucesso!');
-    setSaving(false);
+    try {
+      // Check if settings row exists
+      const { data: existing } = await supabase
+        .from('platform_settings')
+        .select('id')
+        .limit(1)
+        .single();
+
+      if (existing) {
+        // Update existing
+        const { error } = await supabase
+          .from('platform_settings')
+          .update({
+            settings: settings,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new
+        const { error } = await supabase
+          .from('platform_settings')
+          .insert({
+            settings: settings,
+          });
+
+        if (error) throw error;
+      }
+
+      setOriginalSettings(settings);
+      setHasChanges(false);
+      toast.success('Configuracoes salvas com sucesso!');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast.error('Erro ao salvar configuracoes');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateSetting = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleTestSmtp = async () => {
+    if (!settings.smtp_host || !settings.smtp_user) {
+      toast.error('Configure o host e usuario SMTP primeiro');
+      return;
+    }
+    // This would need a backend function to actually test SMTP
+    toast.info('Funcionalidade de teste SMTP requer configuracao do servidor');
   };
 
   const SettingCard = ({ icon: Icon, title, description, children }) => (
@@ -71,18 +169,44 @@ export default function AdminSettings() {
     </Card>
   );
 
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Carregando configuracoes...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Configuracoes</h1>
-          <p className="text-muted-foreground">Configuracoes gerais da plataforma</p>
+          <p className="text-muted-foreground">
+            Configuracoes gerais da plataforma
+            {hasChanges && (
+              <span className="ml-2 text-amber-500 text-sm">(alteracoes nao salvas)</span>
+            )}
+          </p>
         </div>
-        <Button onClick={handleSave} disabled={saving}>
-          <Save className="w-4 h-4 mr-2" />
-          {saving ? 'Salvando...' : 'Salvar Alteracoes'}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={loadSettings} disabled={saving}>
+            <RefreshCcw className="w-4 h-4 mr-2" />
+            Recarregar
+          </Button>
+          <Button onClick={handleSave} disabled={saving || !hasChanges}>
+            {saving ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
+            {saving ? 'Salvando...' : 'Salvar Alteracoes'}
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
@@ -105,16 +229,16 @@ export default function AdminSettings() {
               <div className="space-y-2">
                 <Label>Nome da Plataforma</Label>
                 <Input
-                  value={platformName}
-                  onChange={(e) => setPlatformName(e.target.value)}
+                  value={settings.platform_name}
+                  onChange={(e) => updateSetting('platform_name', e.target.value)}
                   placeholder="Sellx"
                 />
               </div>
               <div className="space-y-2">
                 <Label>URL da Plataforma</Label>
                 <Input
-                  value={platformUrl}
-                  onChange={(e) => setPlatformUrl(e.target.value)}
+                  value={settings.platform_url}
+                  onChange={(e) => updateSetting('platform_url', e.target.value)}
                   placeholder="https://sellx.com.br"
                 />
               </div>
@@ -122,8 +246,8 @@ export default function AdminSettings() {
                 <Label>Email de Suporte</Label>
                 <Input
                   type="email"
-                  value={supportEmail}
-                  onChange={(e) => setSupportEmail(e.target.value)}
+                  value={settings.support_email}
+                  onChange={(e) => updateSetting('support_email', e.target.value)}
                   placeholder="suporte@sellx.com.br"
                 />
               </div>
@@ -143,8 +267,8 @@ export default function AdminSettings() {
                 </p>
               </div>
               <Switch
-                checked={maintenanceMode}
-                onCheckedChange={setMaintenanceMode}
+                checked={settings.maintenance_mode}
+                onCheckedChange={(checked) => updateSetting('maintenance_mode', checked)}
               />
             </div>
           </SettingCard>
@@ -161,24 +285,24 @@ export default function AdminSettings() {
               <div className="space-y-2">
                 <Label>Host SMTP</Label>
                 <Input
-                  value={smtpHost}
-                  onChange={(e) => setSmtpHost(e.target.value)}
+                  value={settings.smtp_host}
+                  onChange={(e) => updateSetting('smtp_host', e.target.value)}
                   placeholder="smtp.exemplo.com"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Porta</Label>
                 <Input
-                  value={smtpPort}
-                  onChange={(e) => setSmtpPort(e.target.value)}
+                  value={settings.smtp_port}
+                  onChange={(e) => updateSetting('smtp_port', e.target.value)}
                   placeholder="587"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Usuario</Label>
                 <Input
-                  value={smtpUser}
-                  onChange={(e) => setSmtpUser(e.target.value)}
+                  value={settings.smtp_user}
+                  onChange={(e) => updateSetting('smtp_user', e.target.value)}
                   placeholder="usuario@exemplo.com"
                 />
               </div>
@@ -186,13 +310,13 @@ export default function AdminSettings() {
                 <Label>Senha</Label>
                 <Input
                   type="password"
-                  value={smtpPassword}
-                  onChange={(e) => setSmtpPassword(e.target.value)}
+                  value={settings.smtp_password}
+                  onChange={(e) => updateSetting('smtp_password', e.target.value)}
                   placeholder="••••••••"
                 />
               </div>
             </div>
-            <Button variant="outline" className="mt-4">
+            <Button variant="outline" className="mt-4" onClick={handleTestSmtp}>
               Testar Conexao
             </Button>
           </SettingCard>
@@ -214,8 +338,8 @@ export default function AdminSettings() {
                   </p>
                 </div>
                 <Switch
-                  checked={emailNewOrg}
-                  onCheckedChange={setEmailNewOrg}
+                  checked={settings.notify_new_org}
+                  onCheckedChange={(checked) => updateSetting('notify_new_org', checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -226,8 +350,8 @@ export default function AdminSettings() {
                   </p>
                 </div>
                 <Switch
-                  checked={emailNewSubscription}
-                  onCheckedChange={setEmailNewSubscription}
+                  checked={settings.notify_new_subscription}
+                  onCheckedChange={(checked) => updateSetting('notify_new_subscription', checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -238,8 +362,8 @@ export default function AdminSettings() {
                   </p>
                 </div>
                 <Switch
-                  checked={emailCancelation}
-                  onCheckedChange={setEmailCancelation}
+                  checked={settings.notify_cancelation}
+                  onCheckedChange={(checked) => updateSetting('notify_cancelation', checked)}
                 />
               </div>
             </div>
@@ -262,8 +386,8 @@ export default function AdminSettings() {
                   </p>
                 </div>
                 <Switch
-                  checked={allowRegistration}
-                  onCheckedChange={setAllowRegistration}
+                  checked={settings.allow_registration}
+                  onCheckedChange={(checked) => updateSetting('allow_registration', checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -274,8 +398,8 @@ export default function AdminSettings() {
                   </p>
                 </div>
                 <Switch
-                  checked={requireEmailVerification}
-                  onCheckedChange={setRequireEmailVerification}
+                  checked={settings.require_email_verification}
+                  onCheckedChange={(checked) => updateSetting('require_email_verification', checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -286,8 +410,8 @@ export default function AdminSettings() {
                   </p>
                 </div>
                 <Switch
-                  checked={allowGoogleLogin}
-                  onCheckedChange={setAllowGoogleLogin}
+                  checked={settings.allow_google_login}
+                  onCheckedChange={(checked) => updateSetting('allow_google_login', checked)}
                 />
               </div>
             </div>
@@ -304,15 +428,29 @@ export default function AdminSettings() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Stripe Secret Key</Label>
-                <Input type="password" placeholder="sk_live_..." />
+                <Input
+                  type="password"
+                  placeholder="sk_live_..."
+                  value={settings.stripe_secret_key}
+                  onChange={(e) => updateSetting('stripe_secret_key', e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Stripe Publishable Key</Label>
-                <Input placeholder="pk_live_..." />
+                <Input
+                  placeholder="pk_live_..."
+                  value={settings.stripe_publishable_key}
+                  onChange={(e) => updateSetting('stripe_publishable_key', e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Webhook Secret</Label>
-                <Input type="password" placeholder="whsec_..." />
+                <Input
+                  type="password"
+                  placeholder="whsec_..."
+                  value={settings.stripe_webhook_secret}
+                  onChange={(e) => updateSetting('stripe_webhook_secret', e.target.value)}
+                />
               </div>
             </div>
           </SettingCard>
@@ -325,11 +463,20 @@ export default function AdminSettings() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Token de Acesso</Label>
-                <Input type="password" placeholder="Token do WhatsApp Business API" />
+                <Input
+                  type="password"
+                  placeholder="Token do WhatsApp Business API"
+                  value={settings.whatsapp_token}
+                  onChange={(e) => updateSetting('whatsapp_token', e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Numero de Telefone</Label>
-                <Input placeholder="+55 11 99999-9999" />
+                <Input
+                  placeholder="+55 11 99999-9999"
+                  value={settings.whatsapp_phone}
+                  onChange={(e) => updateSetting('whatsapp_phone', e.target.value)}
+                />
               </div>
             </div>
           </SettingCard>

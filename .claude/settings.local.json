@@ -24,7 +24,9 @@
       "Bash(for file in \"C:\\\\Users\\\\55319\\\\Desktop\\\\PROJETOS 2026\\\\SELLX EXE\\\\Sellx-Projeto-Limpo\\\\src\\\\components\\\\ui\"/*.jsx)",
       "Bash(do basename \"$file\")",
       "Bash(for file in \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\\\\src\\\\components\\\\ui\"/*.jsx)",
-      "Bash(comm:*)"
+      "Bash(comm:*)",
+      "Bash(git commit:*)",
+      "Bash(timeout:*)"
     ]
   }
 }

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'sonner';
+import { showSuccessToast, showErrorToast } from '@/utils/errorMessages';
 import {
   Plus, Search, Edit, Trash2, Package, Image, MoreVertical, FileSpreadsheet,
   AlertTriangle, TrendingUp, DollarSign, BarChart3
@@ -63,6 +63,7 @@ export default function Products() {
   const [groups, setGroups] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading, isTimeout] = useSafeLoading(true, 20000); // 20s timeout
+  const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGroup, setFilterGroup] = useState('all');
   const [filterStock, setFilterStock] = useState('all'); // all, zero, low, ok
@@ -111,7 +112,7 @@ export default function Products() {
       setSuppliers(suppliersData);
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Erro ao carregar dados');
+      showErrorToast(error);
     } finally {
       setLoading(false);
     }
@@ -121,16 +122,17 @@ export default function Products() {
     e.preventDefault();
 
     if (!formData.name) {
-      toast.error('Nome do produto e obrigatorio');
+      showErrorToast({ code: 'REQUIRED_FIELD', message: 'Nome do produto e obrigatorio' });
       return;
     }
 
     // Se nao permite preco aberto, o preco de venda e obrigatorio
     if (!formData.allow_open_price && !formData.sale_price) {
-      toast.error('Preco de venda e obrigatorio (ou ative "Preco Livre")');
+      showErrorToast({ code: 'REQUIRED_FIELD', message: 'Preco de venda e obrigatorio (ou ative "Preco Livre")' });
       return;
     }
 
+    setSaving(true);
     try {
       // Limpar dados antes de enviar - converter strings vazias em null
       const cleanData = { ...formData };
@@ -151,17 +153,19 @@ export default function Products() {
 
       if (editingProduct) {
         await base44.entities.Product.update(editingProduct.id, cleanData);
-        toast.success('Produto atualizado');
+        showSuccessToast('Produto atualizado', `"${formData.name}" foi atualizado com sucesso.`);
       } else {
         await base44.entities.Product.create(cleanData);
-        toast.success('Produto cadastrado');
+        showSuccessToast('Produto cadastrado', `"${formData.name}" foi adicionado ao catalogo.`);
       }
       setShowForm(false);
       resetForm();
       loadData();
     } catch (error) {
       console.error('Error saving product:', error);
-      toast.error('Erro ao salvar produto');
+      showErrorToast(error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -200,11 +204,11 @@ export default function Products() {
 
     try {
       await base44.entities.Product.delete(product.id);
-      toast.success('Produto excluido');
+      showSuccessToast('Produto excluido', `"${product.name}" foi removido do catalogo.`);
       loadData();
     } catch (error) {
       console.error('Error deleting product:', error);
-      toast.error('Erro ao excluir produto');
+      showErrorToast(error);
     }
   };
 
@@ -216,10 +220,10 @@ export default function Products() {
     try {
       const result = await base44.integrations.Core.UploadFile({ file });
       setFormData({ ...formData, photo_url: result.file_url });
-      toast.success('Imagem enviada');
+      showSuccessToast('Imagem enviada', 'A foto do produto foi carregada com sucesso.');
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast.error('Erro ao enviar imagem');
+      showErrorToast(error);
     } finally {
       setUploading(false);
     }
@@ -534,7 +538,8 @@ export default function Products() {
           columns={columns}
           keyExtractor={(item) => item.id}
           loading={loading}
-          emptyMessage="Nenhum produto encontrado"
+          emptyContext="products"
+          onEmptyAction={() => { resetForm(); setShowForm(true); }}
         />
       </CardSection>
 
@@ -840,10 +845,10 @@ export default function Products() {
             </Tabs>
 
             <DialogFooter className="mt-6">
-              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)} disabled={saving}>
                 Cancelar
               </Button>
-              <Button type="submit">
+              <Button type="submit" loading={saving} loadingText="Salvando...">
                 {editingProduct ? 'Salvar' : 'Cadastrar'}
               </Button>
             </DialogFooter>

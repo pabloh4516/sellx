@@ -6,6 +6,7 @@ import { PWAProvider } from '@/contexts/PWAContext';
 import { USER_ROLES } from '@/config/permissions';
 import { InstallAppFab } from '@/components/pwa';
 import CashWarningModal from '@/components/CashWarningModal';
+import { isAdminSubdomain } from '@/utils/subdomain';
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -29,6 +30,7 @@ import Layout from "./Layout.jsx";
 
 // Admin Pages - lazy load
 const AdminLayout = lazy(() => import("./admin/AdminLayout"));
+const AdminLogin = lazy(() => import("./admin/AdminLogin"));
 const AdminDashboard = lazy(() => import("./admin/AdminDashboard"));
 const AdminOrganizations = lazy(() => import("./admin/AdminOrganizations"));
 const AdminUsers = lazy(() => import("./admin/AdminUsers"));
@@ -224,6 +226,7 @@ function PublicRoute({ children }) {
 // Componente de rota protegida para Super Admin
 function SuperAdminRoute({ children }) {
   const { user, loading, isUsingSupabase } = useAuth();
+  const isAdmin = isAdminSubdomain();
 
   // Se nao esta usando Supabase (modo mock), permite acesso
   if (!isUsingSupabase) {
@@ -232,19 +235,25 @@ function SuperAdminRoute({ children }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   // Se nao esta autenticado, redireciona para login
   if (!user) {
+    // No subdominio admin, redirecionar para /login do admin
     return <Navigate to="/login" replace />;
   }
 
-  // Se nao e super admin, redireciona para dashboard
+  // Se nao e super admin
   if (user.role !== USER_ROLES.SUPER_ADMIN) {
+    // No subdominio admin, redirecionar para login
+    if (isAdmin) {
+      return <Navigate to="/login" replace />;
+    }
+    // No app normal, redirecionar para dashboard
     return <Navigate to="/" replace />;
   }
 
@@ -347,8 +356,48 @@ function LandingRoute() {
   return <LandingPage />;
 }
 
-// Router principal
-function AppRouter() {
+// Router para Admin Subdomain
+function AdminRouter() {
+  return (
+    <Routes>
+      {/* Login do Admin */}
+      <Route
+        path="/login"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <AdminLogin />
+          </Suspense>
+        }
+      />
+
+      {/* Rotas do Admin (Super Admin) */}
+      <Route
+        path="/"
+        element={
+          <SuperAdminRoute>
+            <Suspense fallback={<PageLoader />}>
+              <AdminLayout />
+            </Suspense>
+          </SuperAdminRoute>
+        }
+      >
+        <Route index element={<Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense>} />
+        <Route path="organizations" element={<Suspense fallback={<PageLoader />}><AdminOrganizations /></Suspense>} />
+        <Route path="users" element={<Suspense fallback={<PageLoader />}><AdminUsers /></Suspense>} />
+        <Route path="subscriptions" element={<Suspense fallback={<PageLoader />}><AdminSubscriptions /></Suspense>} />
+        <Route path="financial" element={<Suspense fallback={<PageLoader />}><AdminFinancial /></Suspense>} />
+        <Route path="plans" element={<Suspense fallback={<PageLoader />}><AdminPlans /></Suspense>} />
+        <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettings /></Suspense>} />
+      </Route>
+
+      {/* Qualquer outra rota redireciona para login */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
+}
+
+// Router principal (App normal)
+function MainAppRouter() {
   return (
     <Routes>
       {/* Landing Page - rota raiz */}
@@ -388,7 +437,7 @@ function AppRouter() {
         }
       />
 
-      {/* Rotas do Admin (Super Admin) */}
+      {/* Rotas do Admin (Super Admin) - acessivel via /admin tambem */}
       <Route
         path="/admin"
         element={
@@ -419,6 +468,18 @@ function AppRouter() {
       />
     </Routes>
   );
+}
+
+// Router principal - escolhe entre Admin ou App baseado no subdomain
+function AppRouter() {
+  // Verificar se estamos no subdominio admin
+  const isAdmin = isAdminSubdomain();
+
+  if (isAdmin) {
+    return <AdminRouter />;
+  }
+
+  return <MainAppRouter />;
 }
 
 export default function Pages() {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { isAdminSubdomain } from '@/utils/subdomain';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -32,43 +33,49 @@ import {
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
-const menuItems = [
-  {
-    title: 'Dashboard',
-    icon: LayoutDashboard,
-    path: '/admin',
-  },
-  {
-    title: 'Organizacoes',
-    icon: Building2,
-    path: '/admin/organizations',
-  },
-  {
-    title: 'Usuarios',
-    icon: Users,
-    path: '/admin/users',
-  },
-  {
-    title: 'Assinaturas',
-    icon: CreditCard,
-    path: '/admin/subscriptions',
-  },
-  {
-    title: 'Financeiro',
-    icon: DollarSign,
-    path: '/admin/financial',
-  },
-  {
-    title: 'Planos',
-    icon: Package,
-    path: '/admin/plans',
-  },
-  {
-    title: 'Configuracoes',
-    icon: Settings,
-    path: '/admin/settings',
-  },
-];
+// Detecta o prefixo baseado no modo
+const getPrefix = () => isAdminSubdomain() ? '' : '/admin';
+
+const getMenuItems = () => {
+  const prefix = getPrefix();
+  return [
+    {
+      title: 'Dashboard',
+      icon: LayoutDashboard,
+      path: prefix || '/',
+    },
+    {
+      title: 'Organizacoes',
+      icon: Building2,
+      path: `${prefix}/organizations`,
+    },
+    {
+      title: 'Usuarios',
+      icon: Users,
+      path: `${prefix}/users`,
+    },
+    {
+      title: 'Assinaturas',
+      icon: CreditCard,
+      path: `${prefix}/subscriptions`,
+    },
+    {
+      title: 'Financeiro',
+      icon: DollarSign,
+      path: `${prefix}/financial`,
+    },
+    {
+      title: 'Planos',
+      icon: Package,
+      path: `${prefix}/plans`,
+    },
+    {
+      title: 'Configuracoes',
+      icon: Settings,
+      path: `${prefix}/settings`,
+    },
+  ];
+};
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
@@ -77,8 +84,13 @@ export default function AdminLayout() {
   const { theme, setTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
 
+  const prefix = getPrefix();
+  const menuItems = getMenuItems();
+
   const handleLogout = async () => {
     await logout();
+    // Limpar o subdomain do sessionStorage ao fazer logout
+    sessionStorage.removeItem('dev_subdomain');
     navigate('/login');
   };
 
@@ -120,8 +132,9 @@ export default function AdminLayout() {
         <ScrollArea className="flex-1 py-4">
           <nav className="px-2 space-y-1">
             {menuItems.map((item) => {
+              const dashboardPath = prefix || '/';
               const isActive = location.pathname === item.path ||
-                (item.path !== '/admin' && location.pathname.startsWith(item.path));
+                (item.path !== dashboardPath && item.path !== '/admin' && location.pathname.startsWith(item.path));
               return (
                 <Link
                   key={item.path}
@@ -141,18 +154,21 @@ export default function AdminLayout() {
           </nav>
         </ScrollArea>
 
-        {/* Voltar ao Sistema */}
+        {/* Voltar ao Sistema - limpa o subdomain e vai pro app principal */}
         <div className="p-2 border-t border-border">
-          <Link
-            to="/"
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('dev_subdomain');
+              window.location.href = '/';
+            }}
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full',
               'text-muted-foreground hover:bg-muted hover:text-foreground'
             )}
           >
             <ArrowLeft className={cn('w-5 h-5', collapsed && 'mx-auto')} />
             {!collapsed && <span>Voltar ao Sistema</span>}
-          </Link>
+          </button>
         </div>
 
         {/* Collapse Button */}
@@ -214,7 +230,7 @@ export default function AdminLayout() {
                   <p className="text-xs text-violet-600 font-medium mt-1">Super Admin</p>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/admin/settings')}>
+                <DropdownMenuItem onClick={() => navigate(`${prefix}/settings`)}>
                   <Settings className="w-4 h-4 mr-2" />
                   Configuracoes
                 </DropdownMenuItem>

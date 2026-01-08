@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils"
 
@@ -19,12 +20,19 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        success:
+          "bg-success text-success-foreground shadow-sm hover:bg-success/90",
+        warning:
+          "bg-warning text-warning-foreground shadow-sm hover:bg-warning/90",
       },
       size: {
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
         lg: "h-10 rounded-md px-8",
+        xl: "h-12 rounded-lg px-10 text-base",
         icon: "h-9 w-9",
+        "icon-sm": "h-8 w-8",
+        "icon-lg": "h-10 w-10",
       },
     },
     defaultVariants: {
@@ -34,15 +42,80 @@ const buttonVariants = cva(
   }
 )
 
-const Button = React.forwardRef(({ className, variant, size, asChild = false, ...props }, ref) => {
+const Button = React.forwardRef(({
+  className,
+  variant,
+  size,
+  asChild = false,
+  loading = false,
+  loadingText,
+  disabled,
+  children,
+  ...props
+}, ref) => {
   const Comp = asChild ? Slot : "button"
+  const isDisabled = disabled || loading;
+
+  // Se é asChild e está loading, não podemos adicionar o spinner
+  if (asChild) {
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        disabled={isDisabled}
+        {...props}
+      >
+        {children}
+      </Comp>
+    );
+  }
+
   return (
-    (<Comp
+    <Comp
       className={cn(buttonVariants({ variant, size, className }))}
       ref={ref}
-      {...props} />)
+      disabled={isDisabled}
+      {...props}
+    >
+      {loading && (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      )}
+      {loading && loadingText ? loadingText : children}
+    </Comp>
   );
 })
 Button.displayName = "Button"
 
-export { Button, buttonVariants }
+// Variante de botão com confirmação de loading automática
+const LoadingButton = React.forwardRef(({
+  onClick,
+  children,
+  ...props
+}, ref) => {
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  const handleClick = async (e) => {
+    if (!onClick) return;
+
+    try {
+      setIsLoading(true);
+      await onClick(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      ref={ref}
+      loading={isLoading}
+      onClick={handleClick}
+      {...props}
+    >
+      {children}
+    </Button>
+  );
+});
+LoadingButton.displayName = "LoadingButton";
+
+export { Button, LoadingButton, buttonVariants }

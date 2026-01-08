@@ -93,47 +93,97 @@ import { useOperator } from '@/contexts/OperatorContext';
 import { ROLE_LABELS } from '@/config/permissions';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import { OfflineIndicator } from '@/components/pwa';
+import CommandPalette from '@/components/CommandPalette';
 
 const menuItems = [
+  // ═══════════════════════════════════════
+  // OPERACIONAL - Ferramentas do dia-a-dia
+  // ═══════════════════════════════════════
   {
     name: 'Dashboard',
     icon: LayoutDashboard,
     page: 'Dashboard',
+    category: 'Operacional',
   },
   {
     name: 'PDV',
     icon: ShoppingCart,
     page: 'PDV',
+    category: 'Operacional',
   },
+  {
+    name: 'Caixa',
+    icon: DollarSign,
+    page: 'CashRegister',
+    category: 'Operacional',
+  },
+  {
+    name: 'Ordem de Serviço',
+    icon: Wrench,
+    page: 'ServiceOrders',
+    category: 'Operacional',
+  },
+
+  // ═══════════════════════════════════════
+  // COMERCIAL - Vendas e Marketing
+  // ═══════════════════════════════════════
+  {
+    name: 'Vendas',
+    icon: Receipt,
+    category: 'Comercial',
+    submenu: [
+      { name: 'Histórico', icon: ClipboardList, page: 'Sales' },
+      { name: 'Orçamentos', icon: FileCheck, page: 'Quotes' },
+      { name: 'Pedidos Futuros', icon: ClipboardList, page: 'FutureOrders' },
+      { name: 'Devoluções', icon: RotateCcw, page: 'Returns' },
+      { name: 'Cancelamentos', icon: Ban, page: 'Cancellations' },
+    ]
+  },
+  {
+    name: 'Compras',
+    icon: Truck,
+    category: 'Comercial',
+    submenu: [
+      { name: 'Registro de Compras', icon: FileText, page: 'Purchases' },
+      { name: 'Importar XML', icon: FileCheck, page: 'ImportXML' },
+    ]
+  },
+  {
+    name: 'Promoções',
+    icon: Tag,
+    page: 'Promotions',
+    category: 'Comercial',
+  },
+  {
+    name: 'Fidelidade',
+    icon: TrendingUp,
+    page: 'LoyaltyProgram',
+    category: 'Comercial',
+  },
+
+  // ═══════════════════════════════════════
+  // CADASTROS - Entidades do sistema
+  // ═══════════════════════════════════════
   {
     name: 'Cadastros',
     icon: ClipboardList,
+    category: 'Cadastros',
     submenu: [
-      { name: 'Empresa', icon: Building2, page: 'CompanySettings' },
       { name: 'Clientes', icon: Users, page: 'Customers' },
       { name: 'Fornecedores', icon: Truck, page: 'Suppliers' },
       { name: 'Produtos', icon: Package, page: 'Products' },
       { name: 'Grupos/Categorias', icon: Tag, page: 'ProductGroups' },
       { name: 'Vendedores', icon: UserCircle, page: 'Sellers' },
-      { name: 'Formas de Pagamento', icon: CreditCard, page: 'PaymentMethods' },
-      { name: 'Promoções', icon: Tag, page: 'Promotions' },
-      { name: 'Fidelidade', icon: TrendingUp, page: 'LoyaltyProgram' },
     ]
   },
-  {
-    name: 'Vendas',
-    icon: Receipt,
-    submenu: [
-      { name: 'Histórico', icon: ClipboardList, page: 'Sales' },
-      { name: 'Orçamentos', icon: FileCheck, page: 'Quotes' },
-      { name: 'Devoluções', icon: Package, page: 'Returns' },
-      { name: 'Pedidos Futuros', icon: ClipboardList, page: 'FutureOrders' },
-      { name: 'Cancelamentos', icon: Ban, page: 'Cancellations' },
-    ]
-  },
+
+  // ═══════════════════════════════════════
+  // ESTOQUE - Controle de inventário
+  // ═══════════════════════════════════════
   {
     name: 'Estoque',
     icon: Warehouse,
+    category: 'Estoque',
     submenu: [
       { name: 'Controle', icon: Package, page: 'Stock' },
       { name: 'Lotes e Validade', icon: Package, page: 'StockBatches' },
@@ -145,24 +195,15 @@ const menuItems = [
       { name: 'Etiquetas', icon: Tag, page: 'Labels' },
     ]
   },
-  {
-    name: 'Compras',
-    icon: Truck,
-    submenu: [
-      { name: 'Registro de Compras', icon: FileText, page: 'Purchases' },
-      { name: 'Importar XML', icon: FileCheck, page: 'ImportXML' },
-    ]
-  },
-  {
-    name: 'Ordem de Serviço',
-    icon: Wrench,
-    page: 'ServiceOrders'
-  },
+
+  // ═══════════════════════════════════════
+  // FINANCEIRO - Gestão financeira
+  // ═══════════════════════════════════════
   {
     name: 'Financeiro',
     icon: Wallet,
+    category: 'Financeiro',
     submenu: [
-      { name: 'Caixa', icon: DollarSign, page: 'CashRegister' },
       { name: 'Análise de Caixa', icon: BarChart3, page: 'CashAnalysis' },
       { name: 'Fluxo de Caixa', icon: TrendingUp, page: 'CashFlow' },
       { name: 'Contas a Pagar', icon: FileText, page: 'Payables' },
@@ -172,19 +213,18 @@ const menuItems = [
       { name: 'Contas Bancárias', icon: Building2, page: 'BankAccounts' },
     ]
   },
-  {
-    name: 'Dashboards',
-    icon: BarChart3,
-    submenu: [
-      { name: 'Gerencial', icon: BarChart3, page: 'DashboardManager' },
-      { name: 'Vendedor', icon: TrendingUp, page: 'DashboardSeller' },
-    ]
-  },
+
+  // ═══════════════════════════════════════
+  // RELATÓRIOS - Análises e consultas
+  // ═══════════════════════════════════════
   {
     name: 'Relatórios',
-    icon: FileText,
+    icon: BarChart3,
+    category: 'Relatórios',
     submenu: [
-      { name: 'Central de Relatórios', icon: BarChart3, page: 'Reports' },
+      { name: 'Central de Relatórios', icon: FileText, page: 'Reports' },
+      { name: 'Dashboard Gerencial', icon: BarChart3, page: 'DashboardManager' },
+      { name: 'Dashboard Vendedor', icon: TrendingUp, page: 'DashboardSeller' },
       { name: 'Vendas', icon: Receipt, page: 'ReportSales' },
       { name: 'Estoque', icon: Package, page: 'ReportStock' },
       { name: 'Financeiro', icon: DollarSign, page: 'ReportFinancial' },
@@ -195,19 +235,27 @@ const menuItems = [
   {
     name: 'Consultas',
     icon: Search,
+    category: 'Relatórios',
     submenu: [
       { name: 'Produtos', icon: Package, page: 'SearchProducts' },
       { name: 'Clientes em Atraso', icon: Users, page: 'OverdueCustomers' },
       { name: 'Aniversariantes', icon: Users, page: 'Birthdays' },
     ]
   },
+
+  // ═══════════════════════════════════════
+  // CONFIGURAÇÕES - Ajustes do sistema
+  // ═══════════════════════════════════════
   {
-    name: 'Configuracoes',
+    name: 'Configurações',
     icon: Settings,
+    category: 'Configurações',
     submenu: [
+      { name: 'Empresa', icon: Building2, page: 'CompanySettings' },
       { name: 'Geral', icon: Settings, page: 'Settings' },
-      { name: 'Usuarios', icon: Users, page: 'Users' },
-      { name: 'Personalizacao', icon: Palette, page: 'ThemeSettings' },
+      { name: 'Usuários', icon: Users, page: 'Users' },
+      { name: 'Formas de Pagamento', icon: CreditCard, page: 'PaymentMethods' },
+      { name: 'Personalização', icon: Palette, page: 'ThemeSettings' },
       { name: 'Importar Dados', icon: FileText, page: 'DataImport' },
       { name: 'Backup/Restaurar', icon: Shield, page: 'BackupRestore' },
       { name: 'Log de Auditoria', icon: ShieldCheck, page: 'AuditLog' },
@@ -220,6 +268,7 @@ const menuItems = [
 export default function Layout({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   // Initialize all submenus as closed (controlled)
   const [openSubmenus, setOpenSubmenus] = useState(() => {
     const initial = {};
@@ -419,6 +468,14 @@ export default function Layout({ children, currentPageName }) {
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={() => setCommandPaletteOpen(true)}
+          >
+            <Search className="w-4 h-4" />
+          </Button>
           <OfflineIndicator />
           <NotificationCenter />
         </div>
@@ -519,6 +576,36 @@ export default function Layout({ children, currentPageName }) {
                 <OfflineIndicator showSyncButton={false} />
                 <NotificationCenter />
               </div>
+            )}
+          </div>
+
+          {/* Search Button */}
+          <div className="px-2 py-2">
+            {sidebarOpen ? (
+              <button
+                onClick={() => setCommandPaletteOpen(true)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground bg-sidebar-accent/50 hover:bg-sidebar-accent transition-all"
+              >
+                <Search className="w-4 h-4" />
+                <span className="flex-1 text-left">Buscar...</span>
+                <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                  Ctrl K
+                </kbd>
+              </button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setCommandPaletteOpen(true)}
+                    className="w-full flex items-center justify-center p-2 rounded-lg text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground bg-sidebar-accent/50 hover:bg-sidebar-accent transition-all"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  Buscar (Ctrl+K)
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
 
@@ -636,6 +723,9 @@ export default function Layout({ children, currentPageName }) {
           </ErrorBoundary>
         </main>
       </div>
+
+      {/* Command Palette - Busca Global */}
+      <CommandPalette open={commandPaletteOpen} setOpen={setCommandPaletteOpen} />
     </TooltipProvider>
   );
 }

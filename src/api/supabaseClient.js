@@ -122,13 +122,21 @@ supabase.auth.onAuthStateChange(() => {
 // CACHE E OTIMIZACOES DE PERFORMANCE
 // ============================================================================
 
-// Timeout para queries - evita tela branca infinita
-const QUERY_TIMEOUT = 30000; // 30 segundos (aumentado para conexoes lentas)
+// Configurações de timeout e retry - otimizadas para UX
+const QUERY_TIMEOUT = 10000; // 10 segundos (reduzido de 30s para melhor UX)
+const MAX_RETRIES = 3; // Número máximo de tentativas
+const INITIAL_BACKOFF = 1000; // 1 segundo inicial
 
-// Helper para adicionar timeout em promises com retry
-const withTimeout = async (promise, ms = QUERY_TIMEOUT, fallback = null, retries = 1) => {
-  for (let attempt = 0; attempt <= retries; attempt++) {
+// Helper para adicionar timeout em promises com retry exponencial
+const withTimeout = async (promiseFactory, ms = QUERY_TIMEOUT, fallback = null, maxRetries = MAX_RETRIES) => {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
+      // Se promiseFactory é uma função, chama para obter nova promise
+      // Se não, usa diretamente (compatibilidade com código existente)
+      const promise = typeof promiseFactory === 'function' ? promiseFactory() : promiseFactory;
+
       const result = await Promise.race([
         promise,
         new Promise((_, reject) =>
@@ -137,17 +145,25 @@ const withTimeout = async (promise, ms = QUERY_TIMEOUT, fallback = null, retries
       ]);
       return result;
     } catch (error) {
-      if (error.message === 'TIMEOUT') {
-        if (attempt < retries) {
-          console.log(`[Supabase] Query lenta, tentando novamente... (${attempt + 1}/${retries + 1})`);
+      lastError = error;
+
+      if (error.message === 'TIMEOUT' || error.code === 'PGRST301' || error.message?.includes('network')) {
+        if (attempt < maxRetries - 1) {
+          // Backoff exponencial: 1s, 2s, 4s...
+          const backoffTime = INITIAL_BACKOFF * Math.pow(2, attempt);
+          console.log(`[Supabase] Tentativa ${attempt + 1}/${maxRetries} falhou, aguardando ${backoffTime}ms...`);
+          await new Promise(resolve => setTimeout(resolve, backoffTime));
           continue;
         }
-        console.warn(`[Supabase] Query timeout apos ${ms}ms - retornando fallback`);
+        console.warn(`[Supabase] Todas as ${maxRetries} tentativas falharam - retornando fallback`);
         return fallback;
       }
       throw error;
     }
   }
+
+  // Se chegou aqui, todas as tentativas falharam
+  console.warn(`[Supabase] Query falhou após ${maxRetries} tentativas:`, lastError?.message);
   return fallback;
 };
 

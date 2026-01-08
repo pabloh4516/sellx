@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
+import { showSuccessToast, showErrorToast } from '@/utils/errorMessages';
 import { Search, Eye, Receipt, User, Calendar, TrendingUp, DollarSign, ShoppingBag, Edit2, Save, X, Plus, Minus, Trash2, Lock, Filter, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -80,7 +80,7 @@ export default function Sales() {
       setProducts(productsData);
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Erro ao carregar vendas');
+      showErrorToast(error);
     } finally {
       setLoading(false);
     }
@@ -305,12 +305,12 @@ export default function Sales() {
         s.id === editingSale.id ? { ...s, ...dataToUpdate } : s
       ));
 
-      toast.success('Venda atualizada com sucesso!');
+      showSuccessToast('Venda atualizada', `Venda #${editingSale.sale_number} foi atualizada com sucesso.`);
       setShowEditModal(false);
       setEditingSale(null);
     } catch (error) {
       console.error('Error updating sale:', error);
-      toast.error('Erro ao atualizar venda');
+      showErrorToast(error);
     } finally {
       setSaving(false);
     }
@@ -641,7 +641,7 @@ export default function Sales() {
         <DataTable
           data={filteredSales}
           columns={columns}
-          emptyMessage="Nenhuma venda encontrada"
+          emptyContext="sales"
         />
       </CardSection>
 

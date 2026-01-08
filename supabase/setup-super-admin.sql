@@ -1,29 +1,37 @@
 -- ============================================================================
 -- SELLX - Configuracao do Super Admin
--- Execute este script para configurar seu usuario como Super Admin
+-- Execute este script no SQL Editor do Supabase
 -- ============================================================================
 
--- 1. Atualizar seu usuario para super_admin
--- Substitua 'SEU_EMAIL_AQUI' pelo seu email de cadastro
+-- ============================================================================
+-- PASSO 1: Promover usuario para super_admin
+-- Email: pabloh4516@icloud.com
+-- ============================================================================
+
 UPDATE profiles
 SET role = 'super_admin'
 WHERE id = (
-  SELECT id FROM auth.users
-  WHERE email = 'SEU_EMAIL_AQUI'
+    SELECT id FROM auth.users
+    WHERE email = 'pabloh4516@icloud.com'
 );
 
--- OU, se voce foi o primeiro usuario cadastrado:
--- UPDATE profiles
--- SET role = 'super_admin'
--- WHERE id = (
---   SELECT id FROM profiles
---   ORDER BY created_at ASC
---   LIMIT 1
--- );
+-- ============================================================================
+-- PASSO 2: Verificar se funcionou
+-- ============================================================================
+
+SELECT
+    p.full_name,
+    p.email,
+    p.role,
+    CASE
+        WHEN p.role = 'super_admin' THEN 'SUCESSO - Voce e Super Admin!'
+        ELSE 'ERRO - Role nao foi atualizado'
+    END as status
+FROM profiles p
+WHERE p.email = 'pabloh4516@icloud.com';
 
 -- ============================================================================
--- POLITICAS RLS PARA SUPER ADMIN
--- Super Admin pode ver TODAS as organizacoes e dados
+-- POLITICAS RLS PARA SUPER ADMIN (Execute apenas uma vez)
 -- ============================================================================
 
 -- Funcao para verificar se e super admin
@@ -38,8 +46,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Atualizar politica de organizations para super admin
+-- ============================================================================
+-- POLITICAS PARA ORGANIZATIONS
+-- ============================================================================
+
 DROP POLICY IF EXISTS "Users can view own organization" ON organizations;
+DROP POLICY IF EXISTS "Users can view organizations" ON organizations;
 CREATE POLICY "Users can view organizations"
     ON organizations FOR SELECT
     USING (
@@ -48,6 +60,7 @@ CREATE POLICY "Users can view organizations"
     );
 
 DROP POLICY IF EXISTS "Owners can update organization" ON organizations;
+DROP POLICY IF EXISTS "Users can update organizations" ON organizations;
 CREATE POLICY "Users can update organizations"
     ON organizations FOR UPDATE
     USING (
@@ -62,18 +75,22 @@ CREATE POLICY "Users can update organizations"
         )
     );
 
--- Super admin pode criar organizacoes
+DROP POLICY IF EXISTS "Super admin can insert organizations" ON organizations;
 CREATE POLICY "Super admin can insert organizations"
     ON organizations FOR INSERT
     WITH CHECK (is_super_admin() OR auth.uid() IS NOT NULL);
 
--- Super admin pode deletar organizacoes
+DROP POLICY IF EXISTS "Super admin can delete organizations" ON organizations;
 CREATE POLICY "Super admin can delete organizations"
     ON organizations FOR DELETE
     USING (is_super_admin());
 
--- Atualizar politica de profiles para super admin
+-- ============================================================================
+-- POLITICAS PARA PROFILES
+-- ============================================================================
+
 DROP POLICY IF EXISTS "Users can view own profile or organization profiles" ON profiles;
+DROP POLICY IF EXISTS "Users can view profiles" ON profiles;
 CREATE POLICY "Users can view profiles"
     ON profiles FOR SELECT
     USING (
@@ -82,8 +99,8 @@ CREATE POLICY "Users can view profiles"
         OR organization_id = (SELECT organization_id FROM profiles WHERE id = auth.uid())
     );
 
--- Super admin pode atualizar qualquer perfil
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can update profiles" ON profiles;
 CREATE POLICY "Users can update profiles"
     ON profiles FOR UPDATE
     USING (
@@ -91,8 +108,12 @@ CREATE POLICY "Users can update profiles"
         OR id = auth.uid()
     );
 
--- Super admin pode ver todos os produtos
+-- ============================================================================
+-- POLITICAS PARA PRODUTOS, CLIENTES, VENDAS
+-- ============================================================================
+
 DROP POLICY IF EXISTS "Users can view own organization products" ON products;
+DROP POLICY IF EXISTS "Users can view products" ON products;
 CREATE POLICY "Users can view products"
     ON products FOR SELECT
     USING (
@@ -100,7 +121,6 @@ CREATE POLICY "Users can view products"
         OR organization_id = (SELECT organization_id FROM profiles WHERE id = auth.uid())
     );
 
--- Super admin pode ver todos os clientes
 DROP POLICY IF EXISTS "Users can view customers" ON customers;
 CREATE POLICY "Users can view customers"
     ON customers FOR SELECT
@@ -109,7 +129,6 @@ CREATE POLICY "Users can view customers"
         OR organization_id = (SELECT organization_id FROM profiles WHERE id = auth.uid())
     );
 
--- Super admin pode ver todas as vendas
 DROP POLICY IF EXISTS "Users can view sales" ON sales;
 CREATE POLICY "Users can view sales"
     ON sales FOR SELECT
@@ -118,8 +137,12 @@ CREATE POLICY "Users can view sales"
         OR organization_id = (SELECT organization_id FROM profiles WHERE id = auth.uid())
     );
 
--- Super admin pode ver todas as assinaturas
+-- ============================================================================
+-- POLITICAS PARA ASSINATURAS E BILLING
+-- ============================================================================
+
 DROP POLICY IF EXISTS "Owners can manage subscriptions" ON subscriptions;
+DROP POLICY IF EXISTS "Users can view subscriptions" ON subscriptions;
 CREATE POLICY "Users can view subscriptions"
     ON subscriptions FOR SELECT
     USING (
@@ -132,12 +155,13 @@ CREATE POLICY "Users can view subscriptions"
         )
     );
 
+DROP POLICY IF EXISTS "Super admin can manage subscriptions" ON subscriptions;
 CREATE POLICY "Super admin can manage subscriptions"
     ON subscriptions FOR ALL
     USING (is_super_admin());
 
--- Super admin pode ver todo o billing
 DROP POLICY IF EXISTS "Owners can view billing_history" ON billing_history;
+DROP POLICY IF EXISTS "Users can view billing_history" ON billing_history;
 CREATE POLICY "Users can view billing_history"
     ON billing_history FOR SELECT
     USING (
@@ -150,24 +174,64 @@ CREATE POLICY "Users can view billing_history"
         )
     );
 
+DROP POLICY IF EXISTS "Super admin can manage billing_history" ON billing_history;
 CREATE POLICY "Super admin can manage billing_history"
     ON billing_history FOR ALL
     USING (is_super_admin());
 
--- Super admin pode gerenciar planos
+DROP POLICY IF EXISTS "Super admin can manage plans" ON plans;
 CREATE POLICY "Super admin can manage plans"
     ON plans FOR ALL
     USING (is_super_admin());
 
 -- ============================================================================
--- VERIFICAR CONFIGURACAO
+-- TABELA PLATFORM_SETTINGS - Configurações da Plataforma
 -- ============================================================================
 
--- Verificar se voce e super admin
-SELECT
-    p.full_name,
-    p.role,
-    CASE WHEN p.role = 'super_admin' THEN 'SIM - Voce e Super Admin!' ELSE 'NAO - Execute o UPDATE acima com seu email' END as status
-FROM profiles p
-JOIN auth.users u ON u.id = p.id
-WHERE u.email = 'SEU_EMAIL_AQUI';
+CREATE TABLE IF NOT EXISTS platform_settings (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    settings JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Habilitar RLS
+ALTER TABLE platform_settings ENABLE ROW LEVEL SECURITY;
+
+-- Apenas super admin pode gerenciar configuracoes
+DROP POLICY IF EXISTS "Super admin can manage platform_settings" ON platform_settings;
+CREATE POLICY "Super admin can manage platform_settings"
+    ON platform_settings FOR ALL
+    USING (is_super_admin());
+
+-- Inserir configuracoes padrao se nao existirem
+INSERT INTO platform_settings (settings)
+SELECT '{
+    "platform_name": "Sellx",
+    "platform_url": "https://sellx.com.br",
+    "support_email": "suporte@sellx.com.br",
+    "smtp_host": "",
+    "smtp_port": "587",
+    "smtp_user": "",
+    "smtp_password": "",
+    "notify_new_org": true,
+    "notify_new_subscription": true,
+    "notify_cancelation": true,
+    "allow_registration": true,
+    "require_email_verification": true,
+    "allow_google_login": false,
+    "maintenance_mode": false,
+    "stripe_secret_key": "",
+    "stripe_publishable_key": "",
+    "stripe_webhook_secret": "",
+    "whatsapp_token": "",
+    "whatsapp_phone": ""
+}'::jsonb
+WHERE NOT EXISTS (SELECT 1 FROM platform_settings LIMIT 1);
+
+-- ============================================================================
+-- PRONTO!
+-- Agora voce pode acessar o painel admin em:
+-- - admin.seudominio.com (subdominio)
+-- - localhost:5173?subdomain=admin (desenvolvimento)
+-- ============================================================================
