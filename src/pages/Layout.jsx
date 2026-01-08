@@ -92,7 +92,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useOperator } from '@/contexts/OperatorContext';
 import { ROLE_LABELS } from '@/config/permissions';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
-import { OfflineIndicator } from '@/components/pwa';
 import CommandPalette from '@/components/CommandPalette';
 
 const menuItems = [
@@ -476,7 +475,6 @@ export default function Layout({ children, currentPageName }) {
           >
             <Search className="w-4 h-4" />
           </Button>
-          <OfflineIndicator />
           <NotificationCenter />
         </div>
       </div>
@@ -573,7 +571,6 @@ export default function Layout({ children, currentPageName }) {
             </div>
             {sidebarOpen && (
               <div className="flex items-center gap-1">
-                <OfflineIndicator showSyncButton={false} />
                 <NotificationCenter />
               </div>
             )}

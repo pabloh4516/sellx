@@ -199,7 +199,7 @@ export function InstallAppFab({ className }) {
         </div>
         <div>
           <p className="font-medium text-sm">Instalar Sellx</p>
-          <p className="text-xs text-muted-foreground">Acesso rapido e offline</p>
+          <p className="text-xs text-muted-foreground">Acesso rapido na tela inicial</p>
         </div>
       </div>
       <div className="flex items-center gap-1 ml-2">
@@ -241,9 +241,9 @@ function InstallInstructionsDialog({ open, onOpenChange }) {
             <div className="grid gap-2">
               {[
                 'Acesso rapido pelo menu/desktop',
-                'Funciona sem internet',
                 'Notificacoes em tempo real',
                 'Experiencia de app nativo',
+                'Carregamento mais rapido',
               ].map((benefit, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Check className="w-4 h-4 text-success" />
