@@ -23,10 +23,11 @@ export default function AdminLogin() {
   useEffect(() => {
     if (!authLoading && user) {
       if (user.role === USER_ROLES.SUPER_ADMIN) {
-        navigate('/');
+        // Usar window.location para garantir redirecionamento correto
+        window.location.href = '/';
       }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -66,8 +67,10 @@ export default function AdminLogin() {
           return;
         }
 
-        toast.success('Bem-vindo!');
-        navigate('/');
+        toast.success('Bem-vindo ao painel administrativo!');
+
+        // Usar window.location para garantir reload completo e evitar race condition
+        window.location.href = '/';
       }
     } catch (err) {
       console.error('Login error:', err);
