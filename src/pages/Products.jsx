@@ -18,6 +18,8 @@ import { ExportMenu } from '@/components/ui/export-menu';
 import { useSafeLoading } from '@/components/ui/safe-loading';
 import { usePlanLimits } from '@/hooks/usePlanLimits';
 import LimitAlert from '@/components/billing/LimitAlert';
+import { useSubscriptionBlock, BLOCKABLE_FEATURES } from '@/hooks/useSubscriptionBlock';
+import { SubscriptionBlockModal } from '@/components/SubscriptionBlockModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +69,22 @@ export default function Products() {
   const [loading, setLoading, isTimeout] = useSafeLoading(true, 20000); // 20s timeout
   const [saving, setSaving] = useState(false);
   const { checkLimitAndNotify, getUsageSummary, refreshUsage } = usePlanLimits();
+
+  // Sistema de bloqueio por inadimplencia
+  const { isFeatureBlocked } = useSubscriptionBlock();
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockedFeatureName, setBlockedFeatureName] = useState('');
+
+  // Funcao para verificar bloqueio
+  const checkBlockedAction = (featureId) => {
+    if (isFeatureBlocked(featureId)) {
+      const feature = BLOCKABLE_FEATURES[featureId];
+      setBlockedFeatureName(feature?.label || featureId);
+      setShowBlockModal(true);
+      return true;
+    }
+    return false;
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGroup, setFilterGroup] = useState('all');
   const [filterStock, setFilterStock] = useState('all'); // all, zero, low, ok
@@ -174,6 +192,7 @@ export default function Products() {
   };
 
   const handleEdit = (product) => {
+    if (checkBlockedAction('edit_product')) return;
     setEditingProduct(product);
     setFormData({
       code: product.code || '',
@@ -465,6 +484,7 @@ export default function Products() {
               Importar
             </Button>
             <Button onClick={() => {
+              if (checkBlockedAction('create_product')) return;
               if (!checkLimitAndNotify('products')) return;
               resetForm();
               setShowForm(true);
@@ -877,6 +897,13 @@ export default function Products() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Bloqueio por Inadimplencia */}
+      <SubscriptionBlockModal
+        open={showBlockModal}
+        onClose={() => setShowBlockModal(false)}
+        featureName={blockedFeatureName}
+      />
     </PageContainer>
   );
 }

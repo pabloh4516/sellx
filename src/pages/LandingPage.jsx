@@ -211,6 +211,9 @@ export default function LandingPage() {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-8">
+              <Link to="/sistemas" className="text-gray-600 hover:text-[#1e3a5f] transition-colors font-medium">
+                Sistemas
+              </Link>
               <button onClick={() => scrollToSection('features')} className="text-gray-600 hover:text-[#1e3a5f] transition-colors">
                 Funcionalidades
               </button>
@@ -266,6 +269,9 @@ export default function LandingPage() {
         {mobileMenuOpen && (
           <div className="md:hidden bg-white border-t border-gray-100 py-4">
             <div className="px-4 space-y-4">
+              <Link to="/sistemas" className="block w-full text-left py-2 text-[#1e3a5f] font-medium">
+                Sistemas
+              </Link>
               <button onClick={() => scrollToSection('features')} className="block w-full text-left py-2 text-gray-600">
                 Funcionalidades
               </button>

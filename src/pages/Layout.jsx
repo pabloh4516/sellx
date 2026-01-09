@@ -259,6 +259,7 @@ const menuItems = [
       { name: 'Backup/Restaurar', icon: Shield, page: 'BackupRestore' },
       { name: 'Log de Auditoria', icon: ShieldCheck, page: 'AuditLog' },
       { name: 'Faturamento', icon: CreditCard, page: 'Billing', ownerOnly: true },
+      { name: 'Minha Assinatura', icon: Receipt, page: 'Subscription', ownerOnly: true },
       { name: 'Painel Admin', icon: ShieldCheck, href: '/admin', superAdminOnly: true },
     ]
   },

@@ -35,6 +35,7 @@ import {
   Zap,
   Activity,
   Search,
+  Globe,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -79,6 +80,12 @@ const getMenuItems = () => {
       icon: Package,
       path: `${prefix}/plans`,
       description: 'Configurar',
+    },
+    {
+      title: 'Site',
+      icon: Globe,
+      path: `${prefix}/site-settings`,
+      description: 'Landing/Precos',
     },
     {
       title: 'Configuracoes',

@@ -26,7 +26,19 @@
       "Bash(for file in \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\\\\src\\\\components\\\\ui\"/*.jsx)",
       "Bash(comm:*)",
       "Bash(git commit:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "WebSearch",
+      "WebFetch(domain:www.infinitepay.io)",
+      "WebFetch(domain:www.smbstore.com.br)",
+      "Bash(dir:*)",
+      "Bash(npx eslint:*)",
+      "WebFetch(domain:infinitepay.io)",
+      "WebFetch(domain:docs.infinitepay.io)",
+      "Bash(move:*)",
+      "Bash(ren \"C:\\\\Users\\\\55319\\\\Downloads\\\\sistema-de-gestao-integrada-4d75a0a1\\\\src\\\\hooks\\\\useSubscriptionBlock.js\" \"useSubscriptionBlock.jsx\")",
+      "Bash(npm install:*)",
+      "Bash(npx supabase --version)",
+      "Bash(npx supabase functions deploy:*)"
     ]
   }
 }

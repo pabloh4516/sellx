@@ -9,6 +9,7 @@ import { useAuth } from './AuthContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { getCashRegisterMode, loadSystemSettings } from '@/utils/settingsHelper';
+import SetupPinModal from '@/components/SetupPinModal';
 
 const OperatorContext = createContext(null);
 
@@ -38,6 +39,8 @@ export function OperatorProvider({ children }) {
   const [showCashWarning, setShowCashWarning] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const [openCashRegister, setOpenCashRegister] = useState(null);
+  const [showSetupPin, setShowSetupPin] = useState(false);
+  const [operatorNeedsPin, setOperatorNeedsPin] = useState(false);
 
   // Carregar operador do sessionStorage ao iniciar ou quando usuario muda
   useEffect(() => {
@@ -85,7 +88,59 @@ export function OperatorProvider({ children }) {
         }
       }
 
-      // Nenhum operador salvo ou erro ao carregar, mostrar selecao
+      // Nenhum operador salvo - verificar se é owner para login automatico
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, role, organization_id, pin, avatar_url')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        // Se é owner e não tem PIN (primeiro acesso), fazer login automatico
+        if (profile && (profile.role === 'owner' || profile.role === 'admin')) {
+          // Verificar se tem outros operadores na organizacao
+          const { data: otherOperators } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('organization_id', profile.organization_id)
+            .eq('is_active', true)
+            .neq('id', user.id)
+            .limit(1);
+
+          // Se é o unico operador (primeiro acesso), entrar automaticamente
+          const isAloneInOrg = !otherOperators || otherOperators.length === 0;
+          const hasNoPin = !profile.pin;
+
+          if (isAloneInOrg || (profile.role === 'owner' && hasNoPin)) {
+            console.log('[Operator] Owner sem PIN ou unico operador - login automatico');
+            const operatorData = {
+              id: profile.id,
+              full_name: profile.full_name,
+              email: profile.email,
+              role: profile.role,
+              organization_id: profile.organization_id,
+              avatar_url: profile.avatar_url,
+            };
+            setOperator(operatorData);
+            setAuthOperator(operatorData);
+            sessionStorage.setItem(OPERATOR_KEY, JSON.stringify(operatorData));
+            setShowOperatorSelect(false);
+            setOperatorLoading(false);
+
+            // Se nao tem PIN, mostrar modal para configurar
+            if (hasNoPin) {
+              console.log('[Operator] Usuario sem PIN - exibindo modal de configuracao');
+              setOperatorNeedsPin(true);
+              setShowSetupPin(true);
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('[Operator] Erro ao verificar owner:', e);
+      }
+
+      // Mostrar tela de selecao de operador
       setOperator(null);
       setShowOperatorSelect(true);
       setOperatorLoading(false);
@@ -381,6 +436,13 @@ export function OperatorProvider({ children }) {
     }
   }, [operator]);
 
+  // Handler quando PIN e configurado com sucesso
+  const handlePinSetupSuccess = useCallback(() => {
+    setShowSetupPin(false);
+    setOperatorNeedsPin(false);
+    toast.success('PIN configurado! Agora voce pode trocar de operador com seguranca.');
+  }, []);
+
   const value = {
     // Estado
     operator,
@@ -403,11 +465,23 @@ export function OperatorProvider({ children }) {
     operatorName: operator?.full_name || '',
     operatorRole: operator?.role || '',
     operatorCode: operator?.employee_code || '',
+
+    // PIN Setup
+    operatorNeedsPin,
+    showSetupPin,
   };
 
   return (
     <OperatorContext.Provider value={value}>
       {children}
+
+      {/* Modal para configurar PIN quando usuario nao tem */}
+      <SetupPinModal
+        open={showSetupPin}
+        onSuccess={handlePinSetupSuccess}
+        userId={operator?.id}
+        userName={operator?.full_name}
+      />
     </OperatorContext.Provider>
   );
 }

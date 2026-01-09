@@ -80,16 +80,35 @@ export default function AdminUsers() {
   const loadUsers = async () => {
     setLoading(true);
     try {
+      // Buscar apenas owners (responsaveis pelo pagamento da assinatura)
+      // Usar organization_id para especificar a relacao correta
       const { data, error } = await supabase
         .from('profiles')
-        .select('*, organizations(name)')
+        .select(`
+          *,
+          organizations:organization_id(
+            id,
+            name,
+            slug,
+            plan,
+            subscription_status,
+            trial_ends_at,
+            asaas_customer_id,
+            asaas_subscription_id,
+            created_at
+          )
+        `)
+        .eq('role', 'owner')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error details:', error.message, error.code, error.details);
+        throw error;
+      }
       setUsers(data || []);
     } catch (error) {
-      console.error('Error loading users:', error);
-      toast.error('Erro ao carregar usuarios');
+      console.error('Error loading users:', error?.message || error);
+      toast.error('Erro ao carregar usuarios: ' + (error?.message || 'Erro desconhecido'));
     } finally {
       setLoading(false);
     }
@@ -97,9 +116,6 @@ export default function AdminUsers() {
 
   const filterUsers = () => {
     let filtered = [...users];
-
-    // Ocultar super_admins da lista (sao admins da plataforma, nao usuarios do sistema)
-    filtered = filtered.filter((user) => user.role !== 'super_admin');
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -111,8 +127,9 @@ export default function AdminUsers() {
       );
     }
 
+    // Filtrar por status da assinatura
     if (roleFilter !== 'all') {
-      filtered = filtered.filter((user) => user.role === roleFilter);
+      filtered = filtered.filter((user) => user.organizations?.subscription_status === roleFilter);
     }
 
     setFilteredUsers(filtered);
@@ -202,6 +219,28 @@ export default function AdminUsers() {
     );
   };
 
+  const getSubscriptionBadge = (status) => {
+    const statusConfig = {
+      active: { label: 'Ativo', class: 'bg-green-100 text-green-700' },
+      trial: { label: 'Trial', class: 'bg-blue-100 text-blue-700' },
+      overdue: { label: 'Inadimplente', class: 'bg-red-100 text-red-700' },
+      cancelled: { label: 'Cancelado', class: 'bg-gray-100 text-gray-700' },
+      expired: { label: 'Expirado', class: 'bg-amber-100 text-amber-700' },
+    };
+    const config = statusConfig[status] || { label: status || 'Pendente', class: 'bg-gray-100 text-gray-700' };
+    return <Badge className={config.class}>{config.label}</Badge>;
+  };
+
+  const getPlanBadge = (plan) => {
+    const planConfig = {
+      starter: { label: 'Starter', class: 'bg-blue-100 text-blue-700' },
+      professional: { label: 'Professional', class: 'bg-violet-100 text-violet-700' },
+      enterprise: { label: 'Enterprise', class: 'bg-amber-100 text-amber-700' },
+    };
+    const config = planConfig[plan] || { label: plan || '-', class: 'bg-gray-100 text-gray-700' };
+    return <Badge className={config.class}>{config.label}</Badge>;
+  };
+
   const exportToCSV = () => {
     const headers = ['Nome', 'Email', 'Cargo', 'Organizacao', 'Status', 'Ultimo Login', 'Criado em'];
     const rows = filteredUsers.map((user) => [
@@ -228,9 +267,9 @@ export default function AdminUsers() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Usuarios</h1>
+          <h1 className="text-2xl font-bold">Clientes</h1>
           <p className="text-muted-foreground">
-            Todos os usuarios da plataforma
+            Proprietarios das contas (responsaveis pela assinatura)
           </p>
         </div>
         <div className="flex gap-2">
@@ -262,16 +301,14 @@ export default function AdminUsers() {
             </div>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filtrar por cargo" />
+                <SelectValue placeholder="Filtrar por status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os cargos</SelectItem>
-                <SelectItem value="owner">Proprietario</SelectItem>
-                <SelectItem value="admin">Administrador</SelectItem>
-                <SelectItem value="gerente">Gerente</SelectItem>
-                <SelectItem value="vendedor">Vendedor</SelectItem>
-                <SelectItem value="caixa">Caixa</SelectItem>
-                <SelectItem value="estoquista">Estoquista</SelectItem>
+                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="active">Ativo</SelectItem>
+                <SelectItem value="trial">Em trial</SelectItem>
+                <SelectItem value="overdue">Inadimplente</SelectItem>
+                <SelectItem value="cancelled">Cancelado</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -288,22 +325,7 @@ export default function AdminUsers() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{users.length}</p>
-                <p className="text-sm text-muted-foreground">Total</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
-                <Shield className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {users.filter((u) => u.role === 'owner' || u.role === 'super_admin').length}
-                </p>
-                <p className="text-sm text-muted-foreground">Admins</p>
+                <p className="text-sm text-muted-foreground">Total de Clientes</p>
               </div>
             </div>
           </CardContent>
@@ -316,9 +338,9 @@ export default function AdminUsers() {
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {users.filter((u) => u.is_active).length}
+                  {users.filter((u) => u.organizations?.subscription_status === 'active').length}
                 </p>
-                <p className="text-sm text-muted-foreground">Ativos</p>
+                <p className="text-sm text-muted-foreground">Assinaturas Ativas</p>
               </div>
             </div>
           </CardContent>
@@ -331,13 +353,24 @@ export default function AdminUsers() {
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {users.filter((u) => {
-                    const lastWeek = new Date();
-                    lastWeek.setDate(lastWeek.getDate() - 7);
-                    return new Date(u.last_login_at) >= lastWeek;
-                  }).length}
+                  {users.filter((u) => u.organizations?.subscription_status === 'trial').length}
                 </p>
-                <p className="text-sm text-muted-foreground">Ativos (7d)</p>
+                <p className="text-sm text-muted-foreground">Em Trial</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-red-100 text-red-600">
+                <UserX className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  {users.filter((u) => u.organizations?.subscription_status === 'overdue' || u.organizations?.subscription_status === 'cancelled').length}
+                </p>
+                <p className="text-sm text-muted-foreground">Inadimplentes</p>
               </div>
             </div>
           </CardContent>
@@ -350,12 +383,12 @@ export default function AdminUsers() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Cargo</TableHead>
-                <TableHead>Organizacao</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Empresa</TableHead>
+                <TableHead>Plano</TableHead>
+                <TableHead>Status Assinatura</TableHead>
                 <TableHead>Ultimo Login</TableHead>
-                <TableHead>Criado em</TableHead>
+                <TableHead>Cliente desde</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -390,19 +423,22 @@ export default function AdminUsers() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{getRoleBadge(user.role)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Building2 className="w-4 h-4 text-muted-foreground" />
-                        {user.organizations?.name || '-'}
+                        <span>{user.organizations?.name || '-'}</span>
                       </div>
                     </TableCell>
+                    <TableCell>{getPlanBadge(user.organizations?.plan)}</TableCell>
                     <TableCell>
-                      {user.is_active !== false ? (
-                        <Badge className="bg-green-100 text-green-700">Ativo</Badge>
-                      ) : (
-                        <Badge variant="secondary">Inativo</Badge>
-                      )}
+                      <div className="space-y-1">
+                        {getSubscriptionBadge(user.organizations?.subscription_status)}
+                        {user.organizations?.subscription_status === 'trial' && user.organizations?.trial_ends_at && (
+                          <p className="text-xs text-muted-foreground">
+                            Expira: {new Date(user.organizations.trial_ends_at).toLocaleDateString('pt-BR')}
+                          </p>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {user.last_login_at
@@ -410,7 +446,9 @@ export default function AdminUsers() {
                         : '-'}
                     </TableCell>
                     <TableCell>
-                      {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                      {user.organizations?.created_at
+                        ? new Date(user.organizations.created_at).toLocaleDateString('pt-BR')
+                        : new Date(user.created_at).toLocaleDateString('pt-BR')}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -433,12 +471,12 @@ export default function AdminUsers() {
                             {user.is_active !== false ? (
                               <>
                                 <UserX className="w-4 h-4 mr-2" />
-                                Desativar
+                                Desativar conta
                               </>
                             ) : (
                               <>
                                 <UserCheck className="w-4 h-4 mr-2" />
-                                Ativar
+                                Ativar conta
                               </>
                             )}
                           </DropdownMenuItem>
@@ -457,9 +495,9 @@ export default function AdminUsers() {
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Detalhes do Usuario</DialogTitle>
+            <DialogTitle>Detalhes do Cliente</DialogTitle>
             <DialogDescription>
-              Informacoes completas do usuario
+              Informacoes completas do cliente e assinatura
             </DialogDescription>
           </DialogHeader>
 
@@ -473,7 +511,7 @@ export default function AdminUsers() {
                 </Avatar>
                 <div>
                   <h3 className="font-semibold text-lg">{selectedUser.full_name || 'Sem nome'}</h3>
-                  {getRoleBadge(selectedUser.role)}
+                  <p className="text-sm text-muted-foreground">{selectedUser.organizations?.name || '-'}</p>
                 </div>
               </div>
 
@@ -492,20 +530,30 @@ export default function AdminUsers() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground flex items-center gap-2">
-                    <Building2 className="w-4 h-4" /> Organizacao
+                    <Building2 className="w-4 h-4" /> Plano
                   </p>
-                  <p className="font-medium">{selectedUser.organizations?.name || '-'}</p>
+                  {getPlanBadge(selectedUser.organizations?.plan)}
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground flex items-center gap-2">
-                    <Shield className="w-4 h-4" /> Status
+                    <Shield className="w-4 h-4" /> Status Assinatura
                   </p>
-                  {selectedUser.is_active !== false ? (
-                    <Badge className="bg-green-100 text-green-700">Ativo</Badge>
-                  ) : (
-                    <Badge variant="secondary">Inativo</Badge>
-                  )}
+                  {getSubscriptionBadge(selectedUser.organizations?.subscription_status)}
                 </div>
+                {selectedUser.organizations?.subscription_status === 'trial' && selectedUser.organizations?.trial_ends_at && (
+                  <div className="space-y-1 col-span-2">
+                    <p className="text-muted-foreground">Trial expira em</p>
+                    <p className="font-medium">
+                      {new Date(selectedUser.organizations.trial_ends_at).toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
+                )}
+                {selectedUser.organizations?.asaas_customer_id && (
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">ID Asaas</p>
+                    <p className="font-medium text-xs">{selectedUser.organizations.asaas_customer_id}</p>
+                  </div>
+                )}
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Ultimo Login</p>
                   <p className="font-medium">
@@ -515,9 +563,11 @@ export default function AdminUsers() {
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-muted-foreground">Criado em</p>
+                  <p className="text-muted-foreground">Cliente desde</p>
                   <p className="font-medium">
-                    {new Date(selectedUser.created_at).toLocaleString('pt-BR')}
+                    {selectedUser.organizations?.created_at
+                      ? new Date(selectedUser.organizations.created_at).toLocaleString('pt-BR')
+                      : new Date(selectedUser.created_at).toLocaleString('pt-BR')}
                   </p>
                 </div>
               </div>

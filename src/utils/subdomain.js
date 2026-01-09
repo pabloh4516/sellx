@@ -15,6 +15,9 @@ export function getSubdomain() {
     const params = new URLSearchParams(window.location.search);
     const subdomainParam = params.get('subdomain');
 
+    // Debug
+    console.log('[getSubdomain] search:', window.location.search, 'param:', subdomainParam, 'stored:', sessionStorage.getItem('dev_subdomain'));
+
     // Se tem o parametro na URL, salva no sessionStorage
     if (subdomainParam) {
       sessionStorage.setItem('dev_subdomain', subdomainParam);

@@ -43,6 +43,8 @@ import { USER_ROLES, ROLE_LABELS } from '@/config/permissions';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { usePlanLimits } from '@/hooks/usePlanLimits';
+import { useSubscriptionBlock, BLOCKABLE_FEATURES } from '@/hooks/useSubscriptionBlock';
+import { SubscriptionBlockModal } from '@/components/SubscriptionBlockModal';
 
 // Motivos de cancelamento pre-definidos
 const CANCELLATION_REASONS = [
@@ -79,6 +81,11 @@ export default function PDV({ onModeChange, currentMode, operator, onChangeOpera
 
   // Hook de limites do plano
   const { checkLimitAndNotify, refreshUsage } = usePlanLimits();
+
+  // Sistema de bloqueio por inadimplencia
+  const { isFeatureBlocked } = useSubscriptionBlock();
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockedFeatureName, setBlockedFeatureName] = useState('');
 
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -800,6 +807,14 @@ export default function PDV({ onModeChange, currentMode, operator, onChangeOpera
   const finalizeSale = async () => {
     if (cart.length === 0) {
       toast.error('Carrinho vazio');
+      return;
+    }
+
+    // Verificar bloqueio por inadimplencia
+    if (isFeatureBlocked('start_sale')) {
+      const feature = BLOCKABLE_FEATURES['start_sale'];
+      setBlockedFeatureName(feature?.label || 'Iniciar Venda');
+      setShowBlockModal(true);
       return;
     }
 
@@ -2498,6 +2513,13 @@ export default function PDV({ onModeChange, currentMode, operator, onChangeOpera
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Bloqueio por Inadimplencia */}
+      <SubscriptionBlockModal
+        open={showBlockModal}
+        onClose={() => setShowBlockModal(false)}
+        featureName={blockedFeatureName}
+      />
     </>
   );
 }

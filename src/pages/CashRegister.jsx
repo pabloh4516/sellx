@@ -31,10 +31,28 @@ import {
   MetricCard,
   EmptyState,
 } from '@/components/nexo';
+import { useSubscriptionBlock, BLOCKABLE_FEATURES } from '@/hooks/useSubscriptionBlock';
+import { SubscriptionBlockModal } from '@/components/SubscriptionBlockModal';
 
 export default function CashRegister() {
   const { user, operator, logAuditAction, can, PERMISSIONS } = useAuth();
   const currentUser = operator || user;
+
+  // Sistema de bloqueio por inadimplencia
+  const { isFeatureBlocked } = useSubscriptionBlock();
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockedFeatureName, setBlockedFeatureName] = useState('');
+
+  // Funcao para verificar bloqueio e mostrar modal
+  const checkBlockedAction = (featureId) => {
+    if (isFeatureBlocked(featureId)) {
+      const feature = BLOCKABLE_FEATURES[featureId];
+      setBlockedFeatureName(feature?.label || featureId);
+      setShowBlockModal(true);
+      return true;
+    }
+    return false;
+  };
 
   // Carregar configuracao do modo de caixa
   const [cashRegisterMode, setCashRegisterMode] = useState(() => getCashRegisterMode());
@@ -597,7 +615,11 @@ export default function CashRegister() {
 
             {canOpenCash ? (
               <Button
-                onClick={() => setShowOpenDialog(true)}
+                onClick={() => {
+                  if (!checkBlockedAction('open_cash')) {
+                    setShowOpenDialog(true);
+                  }
+                }}
                 className="w-full h-12 text-base"
               >
                 <Unlock className="w-5 h-5 mr-2" />
@@ -696,6 +718,13 @@ export default function CashRegister() {
             </div>
           )}
 
+          {/* Modal de Bloqueio */}
+          <SubscriptionBlockModal
+            open={showBlockModal}
+            onClose={() => setShowBlockModal(false)}
+            featureName={blockedFeatureName}
+          />
+
           <Dialog open={showOpenDialog} onOpenChange={setShowOpenDialog}>
             <DialogContent>
               <DialogHeader>
@@ -776,8 +805,10 @@ export default function CashRegister() {
               <Button
                 variant="destructive"
                 onClick={() => {
-                  setClosingBalance(calculateExpectedBalance());
-                  setShowCloseDialog(true);
+                  if (!checkBlockedAction('close_cash')) {
+                    setClosingBalance(calculateExpectedBalance());
+                    setShowCloseDialog(true);
+                  }
                 }}
               >
                 <Lock className="w-4 h-4 mr-2" />

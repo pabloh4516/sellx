@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'r
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { OperatorProvider, useOperator } from '@/contexts/OperatorContext';
 import { PWAProvider } from '@/contexts/PWAContext';
+import { SubscriptionBlockProvider } from '@/hooks/useSubscriptionBlock';
 import { USER_ROLES } from '@/config/permissions';
 import { InstallAppFab } from '@/components/pwa';
 import CashWarningModal from '@/components/CashWarningModal';
@@ -17,6 +18,11 @@ const PageLoader = () => (
 
 // Landing Page - carrega estatico (primeira pagina)
 import LandingPage from "./LandingPage";
+import SystemsPage from "./SystemsPage";
+import SystemOnlinePage from "./SystemOnlinePage";
+import SystemOfflinePage from "./SystemOfflinePage";
+import CheckoutOfflinePage from "./CheckoutOfflinePage";
+import CheckoutRetornoPage from "./CheckoutRetornoPage";
 
 // Auth Pages - carrega estatico (essenciais)
 import Login from "./Login";
@@ -38,6 +44,7 @@ const AdminSubscriptions = lazy(() => import("./admin/AdminSubscriptions"));
 const AdminFinancial = lazy(() => import("./admin/AdminFinancial"));
 const AdminPlans = lazy(() => import("./admin/AdminPlans"));
 const AdminSettings = lazy(() => import("./admin/AdminSettings"));
+const AdminSiteSettings = lazy(() => import("./admin/AdminSiteSettings"));
 
 // Pages - lazy load (carregam sob demanda)
 const BankAccounts = lazy(() => import("./BankAccounts"));
@@ -95,6 +102,7 @@ const BackupRestore = lazy(() => import("./BackupRestore"));
 const ThemeSettings = lazy(() => import("./ThemeSettings"));
 const Billing = lazy(() => import("./Billing"));
 const Cancellations = lazy(() => import("./Cancellations"));
+const Subscription = lazy(() => import("./Subscription"));
 
 const PAGES = {
   BankAccounts,
@@ -151,6 +159,7 @@ const PAGES = {
   Users,
   Billing,
   Cancellations,
+  Subscription,
 };
 
 function _getCurrentPage(url) {
@@ -223,6 +232,9 @@ function PublicRoute({ children }) {
   return children;
 }
 
+// Email do super admin (mesmo definido no AdminLogin)
+const SUPER_ADMIN_EMAIL = 'pabloh4516@icloud.com';
+
 // Componente de rota protegida para Super Admin
 function SuperAdminRoute({ children }) {
   const { user, loading, isUsingSupabase } = useAuth();
@@ -247,8 +259,15 @@ function SuperAdminRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
+  // Verificar se e super admin pelo role OU pelo email (backup, case-insensitive)
+  const isSuperAdmin = user.role === USER_ROLES.SUPER_ADMIN ||
+    user.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+
+  // Debug - remover depois
+  console.log('[SuperAdminRoute] user:', user?.email, 'role:', user?.role, 'isSuperAdmin:', isSuperAdmin);
+
   // Se nao e super admin
-  if (user.role !== USER_ROLES.SUPER_ADMIN) {
+  if (!isSuperAdmin) {
     // No subdominio admin, redirecionar para login
     if (isAdmin) {
       return <Navigate to="/login" replace />;
@@ -324,6 +343,7 @@ function AppContent() {
         <Route path="/ThemeSettings" element={<ThemeSettings />} />
         <Route path="/Billing" element={<Billing />} />
         <Route path="/Cancellations" element={<Cancellations />} />
+        <Route path="/Subscription" element={<Subscription />} />
         </Routes>
       </Suspense>
     </Layout>
@@ -387,6 +407,7 @@ function AdminRouter() {
         <Route path="subscriptions" element={<Suspense fallback={<PageLoader />}><AdminSubscriptions /></Suspense>} />
         <Route path="financial" element={<Suspense fallback={<PageLoader />}><AdminFinancial /></Suspense>} />
         <Route path="plans" element={<Suspense fallback={<PageLoader />}><AdminPlans /></Suspense>} />
+        <Route path="site-settings" element={<Suspense fallback={<PageLoader />}><AdminSiteSettings /></Suspense>} />
         <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettings /></Suspense>} />
       </Route>
 
@@ -402,6 +423,13 @@ function MainAppRouter() {
     <Routes>
       {/* Landing Page - rota raiz */}
       <Route path="/" element={<LandingRoute />} />
+
+      {/* Paginas de apresentacao de sistemas (publicas) */}
+      <Route path="/sistemas" element={<SystemsPage />} />
+      <Route path="/sistema-online" element={<SystemOnlinePage />} />
+      <Route path="/sistema-offline" element={<SystemOfflinePage />} />
+      <Route path="/checkout-offline" element={<CheckoutOfflinePage />} />
+      <Route path="/checkout-retorno" element={<CheckoutRetornoPage />} />
 
       {/* Rotas publicas (auth) */}
       <Route
@@ -454,6 +482,7 @@ function MainAppRouter() {
         <Route path="subscriptions" element={<Suspense fallback={<PageLoader />}><AdminSubscriptions /></Suspense>} />
         <Route path="financial" element={<Suspense fallback={<PageLoader />}><AdminFinancial /></Suspense>} />
         <Route path="plans" element={<Suspense fallback={<PageLoader />}><AdminPlans /></Suspense>} />
+        <Route path="site-settings" element={<Suspense fallback={<PageLoader />}><AdminSiteSettings /></Suspense>} />
         <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettings /></Suspense>} />
       </Route>
 
@@ -475,6 +504,9 @@ function AppRouter() {
   // Verificar se estamos no subdominio admin
   const isAdmin = isAdminSubdomain();
 
+  // Debug
+  console.log('[AppRouter] isAdminSubdomain:', isAdmin, 'search:', window.location.search);
+
   if (isAdmin) {
     return <AdminRouter />;
   }
@@ -486,13 +518,15 @@ export default function Pages() {
   return (
     <PWAProvider>
       <AuthProvider>
-        <OperatorProvider>
-          <Router>
-            <AppRouter />
-            <CashWarningModal />
-            <InstallAppFab />
-          </Router>
-        </OperatorProvider>
+        <SubscriptionBlockProvider>
+          <OperatorProvider>
+            <Router>
+              <AppRouter />
+              <CashWarningModal />
+              <InstallAppFab />
+            </Router>
+          </OperatorProvider>
+        </SubscriptionBlockProvider>
       </AuthProvider>
     </PWAProvider>
   );

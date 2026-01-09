@@ -1,20 +1,117 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, User, Building2, Check, CheckCircle2, Inbox } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, User, Building2, Check, CheckCircle2, Inbox, Phone, CreditCard, Zap, Crown, Rocket } from 'lucide-react';
+import { createFullSubscription } from '@/services/asaasSubscription';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
+
+// Mask helpers
+const formatCPF = (value) => {
+  const numbers = value.replace(/\D/g, '').slice(0, 11);
+  return numbers
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+};
+
+const formatPhone = (value) => {
+  const numbers = value.replace(/\D/g, '').slice(0, 11);
+  if (numbers.length <= 10) {
+    return numbers
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{4})(\d)/, '$1-$2');
+  }
+  return numbers
+    .replace(/(\d{2})(\d)/, '($1) $2')
+    .replace(/(\d{5})(\d)/, '$1-$2');
+};
+
+const formatCNPJ = (value) => {
+  const numbers = value.replace(/\D/g, '').slice(0, 14);
+  return numbers
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+};
+
+const validateCPF = (cpf) => {
+  const numbers = cpf.replace(/\D/g, '');
+  if (numbers.length !== 11) return false;
+  if (/^(\d)\1+$/.test(numbers)) return false;
+
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += parseInt(numbers[i]) * (10 - i);
+  let check = 11 - (sum % 11);
+  if (check >= 10) check = 0;
+  if (check !== parseInt(numbers[9])) return false;
+
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += parseInt(numbers[i]) * (11 - i);
+  check = 11 - (sum % 11);
+  if (check >= 10) check = 0;
+  return check === parseInt(numbers[10]);
+};
+
+// Planos default (serão sobrescritos pelos valores do banco)
+const DEFAULT_PLANS = [
+  {
+    id: 'starter',
+    name: 'Starter',
+    price: 79,
+    icon: Zap,
+    color: 'blue',
+    features: ['1 usuario', '1 PDV', 'Ate 500 produtos'],
+  },
+  {
+    id: 'professional',
+    name: 'Professional',
+    price: 149,
+    icon: Crown,
+    color: 'violet',
+    popular: true,
+    features: ['5 usuarios', '3 PDVs', 'Produtos ilimitados'],
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    price: 299,
+    icon: Rocket,
+    color: 'amber',
+    features: ['Usuarios ilimitados', 'PDVs ilimitados', 'Suporte dedicado'],
+  },
+];
 
 export default function Register() {
+  // Buscar configurações do banco
+  const { settings: planSettings } = useSiteSettings('plans');
+  const { settings: paymentSettings } = useSiteSettings('payment');
+
+  // Montar planos com valores do banco
+  const PLANS = DEFAULT_PLANS.map(plan => ({
+    ...plan,
+    price: planSettings[`plans_${plan.id}_price`] || plan.price,
+    name: planSettings[`plans_${plan.id}_name`] || plan.name,
+  }));
+
+  // Dias de trial do banco ou default
+  const trialDays = planSettings.plans_trial_days || 7;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialPlan = searchParams.get('plano') || 'professional';
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
   // Step 1: Dados pessoais
   const [fullName, setFullName] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -25,12 +122,31 @@ export default function Register() {
   const [companyCnpj, setCompanyCnpj] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
 
+  // Step 3: Plano
+  const [selectedPlan, setSelectedPlan] = useState(initialPlan);
+
   // Terms
   const [acceptTerms, setAcceptTerms] = useState(false);
 
   const validateStep1 = () => {
     if (!fullName.trim()) {
       toast.error('Informe seu nome completo');
+      return false;
+    }
+    if (!cpf.trim()) {
+      toast.error('Informe seu CPF');
+      return false;
+    }
+    if (!validateCPF(cpf)) {
+      toast.error('CPF invalido');
+      return false;
+    }
+    if (!phone.trim()) {
+      toast.error('Informe seu telefone');
+      return false;
+    }
+    if (phone.replace(/\D/g, '').length < 10) {
+      toast.error('Telefone invalido');
       return false;
     }
     if (!email.trim()) {
@@ -52,19 +168,24 @@ export default function Register() {
     return true;
   };
 
+  const validateStep2 = () => {
+    if (!companyName.trim()) {
+      toast.error('Informe o nome da empresa');
+      return false;
+    }
+    return true;
+  };
+
   const handleNextStep = () => {
-    if (validateStep1()) {
+    if (step === 1 && validateStep1()) {
       setStep(2);
+    } else if (step === 2 && validateStep2()) {
+      setStep(3);
     }
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
-
-    if (!companyName.trim()) {
-      toast.error('Informe o nome da empresa');
-      return;
-    }
 
     if (!acceptTerms) {
       toast.error('Voce precisa aceitar os termos de uso');
@@ -82,7 +203,10 @@ export default function Register() {
         options: {
           data: {
             full_name: fullName,
+            cpf: cpf.replace(/\D/g, ''),
+            phone: phone.replace(/\D/g, ''),
             company_name: companyName,
+            selected_plan: selectedPlan,
           },
         },
       });
@@ -111,24 +235,65 @@ export default function Register() {
         return;
       }
 
-      // Aguardar um momento para o trigger criar o profile
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Aguardar um momento para garantir que o usuario foi criado
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // 2. Atualizar o profile com dados completos (trigger ja criou o basico)
-      const { error: updateProfileError } = await supabase
+      // 2. Criar o profile diretamente (nao depender do trigger)
+      // Primeiro tentar buscar se o trigger ja criou
+      const { data: existingProfile } = await supabase
         .from('profiles')
-        .update({
-          full_name: fullName,
-          role: 'owner',
-        })
-        .eq('id', authData.user.id);
+        .select('id')
+        .eq('id', authData.user.id)
+        .maybeSingle();
 
-      if (updateProfileError) {
-        console.error('Error updating profile:', updateProfileError);
-        // Nao falhar aqui, o trigger ja criou o basico
+      if (existingProfile) {
+        // Profile existe, apenas atualizar
+        const { error: updateProfileError } = await supabase
+          .from('profiles')
+          .update({
+            full_name: fullName,
+            email: email,
+            cpf: cpf.replace(/\D/g, ''),
+            phone: phone.replace(/\D/g, ''),
+            role: 'owner',
+            is_active: true,
+          })
+          .eq('id', authData.user.id);
+
+        if (updateProfileError) {
+          console.error('Error updating profile:', updateProfileError);
+        }
+      } else {
+        // Profile nao existe, criar diretamente
+        const { error: insertProfileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id,
+            full_name: fullName,
+            email: email,
+            cpf: cpf.replace(/\D/g, ''),
+            phone: phone.replace(/\D/g, ''),
+            role: 'owner',
+            is_active: true,
+          });
+
+        if (insertProfileError) {
+          console.error('Error creating profile:', insertProfileError);
+          // Isso é critico - o usuario nao vai conseguir usar o sistema
+          toast.error('Erro ao criar perfil. Entre em contato com o suporte.');
+          return;
+        }
       }
 
-      // 3. Criar organizacao
+      // 3. Criar organizacao com limites baseados no plano
+      const planLimits = {
+        starter: { max_users: 1, max_products: 500 },
+        professional: { max_users: 5, max_products: -1 },
+        enterprise: { max_users: -1, max_products: -1 },
+      };
+
+      const limits = planLimits[selectedPlan] || planLimits.starter;
+
       const slug = companyName
         .toLowerCase()
         .normalize('NFD')
@@ -141,11 +306,11 @@ export default function Register() {
         .insert({
           name: companyName,
           slug,
-          cnpj: companyCnpj || null,
-          phone: companyPhone || null,
-          plan: 'free',
-          max_users: 1,
-          max_products: 50,
+          cnpj: companyCnpj ? companyCnpj.replace(/\D/g, '') : null,
+          phone: companyPhone ? companyPhone.replace(/\D/g, '') : phone.replace(/\D/g, ''),
+          plan: selectedPlan,
+          max_users: limits.max_users,
+          max_products: limits.max_products,
         })
         .select()
         .single();
@@ -179,6 +344,66 @@ export default function Register() {
           }
         }
 
+        // 5. Criar assinatura no Asaas (se API key configurada)
+        const asaasApiKey = paymentSettings?.payment_asaas_api_key;
+
+        if (asaasApiKey) {
+          try {
+            const selectedPlanData = PLANS.find(p => p.id === selectedPlan);
+            const planPrice = selectedPlanData?.price || 79;
+
+            const subscriptionResult = await createFullSubscription({
+              customerName: fullName,
+              customerEmail: email,
+              customerCpf: cpf,
+              customerPhone: phone,
+              planName: selectedPlanData?.name || selectedPlan,
+              planValue: planPrice,
+              trialDays: trialDays,
+              organizationId: orgData.id,
+              billingType: 'PIX',
+              cycle: 'MONTHLY',
+            }, asaasApiKey);
+
+            if (subscriptionResult.success) {
+              // Atualizar organization com dados do Asaas
+              const trialEndsAt = new Date();
+              trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
+
+              await supabase
+                .from('organizations')
+                .update({
+                  asaas_customer_id: subscriptionResult.customerId,
+                  asaas_subscription_id: subscriptionResult.subscriptionId,
+                  subscription_status: 'trial',
+                  trial_ends_at: trialEndsAt.toISOString(),
+                  billing_email: email,
+                })
+                .eq('id', orgData.id);
+
+              console.log('Assinatura Asaas criada:', subscriptionResult.subscriptionId);
+            } else {
+              console.error('Erro ao criar assinatura Asaas:', subscriptionResult.error);
+              // Nao falhar o cadastro por isso - usuario pode configurar depois
+            }
+          } catch (asaasError) {
+            console.error('Erro ao integrar com Asaas:', asaasError);
+            // Continuar mesmo com erro - cadastro local funciona
+          }
+        } else {
+          // Sem API Key - apenas definir trial local
+          const trialEndsAt = new Date();
+          trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
+
+          await supabase
+            .from('organizations')
+            .update({
+              subscription_status: 'trial',
+              trial_ends_at: trialEndsAt.toISOString(),
+            })
+            .eq('id', orgData.id);
+        }
+
         // Criar configuracoes iniciais (ignorar erros)
         await supabase.from('theme_settings').insert({
           organization_id: orgData.id,
@@ -204,7 +429,7 @@ export default function Register() {
       }
 
       // Mostrar tela de sucesso
-      setStep(3);
+      setStep(4);
 
     } catch (error) {
       console.error('Registration error:', error);
@@ -268,8 +493,8 @@ export default function Register() {
       {/* Right Side - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
-          {/* Step 3: Success - Email Confirmation */}
-          {step === 3 ? (
+          {/* Step 4: Success - Email Confirmation */}
+          {step === 4 ? (
             <div className="text-center space-y-6">
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 text-green-600 mb-4">
                 <CheckCircle2 className="w-10 h-10" />
@@ -317,7 +542,7 @@ export default function Register() {
                 </div>
                 <h1 className="text-3xl font-bold">Criar Conta</h1>
                 <p className="text-muted-foreground mt-2">
-                  {step === 1 ? 'Seus dados pessoais' : 'Dados da sua empresa'}
+                  {step === 1 ? 'Seus dados pessoais' : step === 2 ? 'Dados da sua empresa' : 'Escolha seu plano'}
                 </p>
               </div>
 
@@ -325,15 +550,16 @@ export default function Register() {
               <div className="flex items-center gap-2">
                 <div className={`flex-1 h-2 rounded-full ${step >= 1 ? 'bg-primary' : 'bg-muted'}`} />
                 <div className={`flex-1 h-2 rounded-full ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
+                <div className={`flex-1 h-2 rounded-full ${step >= 3 ? 'bg-primary' : 'bg-muted'}`} />
               </div>
             </>
           )}
 
           {/* Step 1: Personal Data */}
           {step === 1 && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="fullName">Nome Completo</Label>
+                <Label htmlFor="fullName">Nome Completo *</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
@@ -347,8 +573,42 @@ export default function Register() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="cpf">CPF *</Label>
+                  <div className="relative">
+                    <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="cpf"
+                      type="text"
+                      placeholder="000.000.000-00"
+                      value={cpf}
+                      onChange={(e) => setCpf(formatCPF(e.target.value))}
+                      className="pl-10"
+                      maxLength={14}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Telefone *</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="phone"
+                      type="text"
+                      placeholder="(00) 00000-0000"
+                      value={phone}
+                      onChange={(e) => setPhone(formatPhone(e.target.value))}
+                      className="pl-10"
+                      maxLength={15}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email *</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
@@ -362,62 +622,65 @@ export default function Register() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Minimo 6 caracteres"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-                {password && (
-                  <div className="space-y-1">
-                    <div className="flex gap-1">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <div
-                          key={i}
-                          className={`h-1 flex-1 rounded-full ${
-                            i <= strength.level ? strength.color : 'bg-muted'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Forca da senha: {strength.text}
-                    </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha *</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Min. 6 caracteres"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
-                )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirmar *</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="confirmPassword"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Repita a senha"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirmar Senha</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    id="confirmPassword"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Repita a senha"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pl-10"
-                  />
+              {password && (
+                <div className="space-y-1">
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className={`h-1 flex-1 rounded-full ${
+                          i <= strength.level ? strength.color : 'bg-muted'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Forca: {strength.text}</span>
+                    {confirmPassword && password !== confirmPassword && (
+                      <span className="text-red-500">Senhas nao conferem</span>
+                    )}
+                  </div>
                 </div>
-                {confirmPassword && password !== confirmPassword && (
-                  <p className="text-xs text-red-500">As senhas nao conferem</p>
-                )}
-              </div>
+              )}
 
               <Button onClick={handleNextStep} className="w-full" size="lg">
                 Continuar
@@ -428,7 +691,7 @@ export default function Register() {
 
           {/* Step 2: Company Data */}
           {step === 2 && (
-            <form onSubmit={handleRegister} className="space-y-6">
+            <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="companyName">Nome da Empresa *</Label>
                 <div className="relative">
@@ -440,36 +703,120 @@ export default function Register() {
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     className="pl-10"
-                    disabled={loading}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="companyCnpj">CNPJ (opcional)</Label>
-                <Input
-                  id="companyCnpj"
-                  type="text"
-                  placeholder="00.000.000/0000-00"
-                  value={companyCnpj}
-                  onChange={(e) => setCompanyCnpj(e.target.value)}
-                  disabled={loading}
-                />
+                <div className="relative">
+                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    id="companyCnpj"
+                    type="text"
+                    placeholder="00.000.000/0000-00"
+                    value={companyCnpj}
+                    onChange={(e) => setCompanyCnpj(formatCNPJ(e.target.value))}
+                    className="pl-10"
+                    maxLength={18}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="companyPhone">Telefone (opcional)</Label>
-                <Input
-                  id="companyPhone"
-                  type="text"
-                  placeholder="(00) 00000-0000"
-                  value={companyPhone}
-                  onChange={(e) => setCompanyPhone(e.target.value)}
-                  disabled={loading}
-                />
+                <Label htmlFor="companyPhone">Telefone da Empresa (opcional)</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    id="companyPhone"
+                    type="text"
+                    placeholder="(00) 00000-0000"
+                    value={companyPhone}
+                    onChange={(e) => setCompanyPhone(formatPhone(e.target.value))}
+                    className="pl-10"
+                    maxLength={15}
+                  />
+                </div>
               </div>
 
-              <div className="flex items-start space-x-2">
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep(1)}
+                >
+                  Voltar
+                </Button>
+                <Button onClick={handleNextStep} className="flex-1" size="lg">
+                  Continuar
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Plan Selection */}
+          {step === 3 && (
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div className="grid gap-3">
+                {PLANS.map((plan) => {
+                  const Icon = plan.icon;
+                  const isSelected = selectedPlan === plan.id;
+                  return (
+                    <div
+                      key={plan.id}
+                      onClick={() => setSelectedPlan(plan.id)}
+                      className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-primary bg-primary/5 shadow-md'
+                          : 'border-muted hover:border-primary/50'
+                      }`}
+                    >
+                      {plan.popular && (
+                        <span className="absolute -top-2.5 left-4 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-medium rounded-full">
+                          Popular
+                        </span>
+                      )}
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                          plan.color === 'blue' ? 'bg-blue-100 text-blue-600' :
+                          plan.color === 'violet' ? 'bg-violet-100 text-violet-600' :
+                          'bg-amber-100 text-amber-600'
+                        }`}>
+                          <Icon className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-semibold">{plan.name}</h3>
+                            <div className="text-right">
+                              <span className="text-2xl font-bold">R${plan.price}</span>
+                              <span className="text-sm text-muted-foreground">/mes</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {plan.features.map((f, i) => (
+                              <span key={i} className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                                {f}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          isSelected ? 'border-primary bg-primary' : 'border-muted'
+                        }`}>
+                          {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="text-xs text-center text-muted-foreground">
+                Teste gratis por {trialDays} dias. Cancele quando quiser.
+              </p>
+
+              <div className="flex items-start space-x-2 pt-2">
                 <Checkbox
                   id="terms"
                   checked={acceptTerms}
@@ -492,7 +839,7 @@ export default function Register() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setStep(1)}
+                  onClick={() => setStep(2)}
                   disabled={loading}
                 >
                   Voltar
@@ -515,7 +862,7 @@ export default function Register() {
           )}
 
           {/* Login Link */}
-          {step !== 3 && (
+          {step !== 4 && (
             <p className="text-center text-sm text-muted-foreground">
               Ja tem uma conta?{' '}
               <Link to="/login" className="text-primary hover:underline font-medium">
