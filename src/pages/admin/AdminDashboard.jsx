@@ -233,7 +233,7 @@ export default function AdminDashboard() {
       primary: 'bg-gradient-to-br from-blue-500 to-blue-600',
       success: 'bg-gradient-to-br from-emerald-500 to-emerald-600',
       warning: 'bg-gradient-to-br from-amber-500 to-amber-600',
-      purple: 'bg-gradient-to-br from-violet-500 to-violet-600',
+      purple: 'bg-gradient-to-br from-blue-500 to-blue-600',
       rose: 'bg-gradient-to-br from-rose-500 to-rose-600',
     };
 
@@ -298,10 +298,10 @@ export default function AdminDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
               Dashboard
             </h1>
           </div>
@@ -312,7 +312,7 @@ export default function AdminDashboard() {
         <Button
           onClick={loadDashboardData}
           disabled={loading}
-          className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
         >
           <RefreshCcw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Atualizar
@@ -424,7 +424,7 @@ export default function AdminDashboard() {
         <Card className="lg:col-span-2 border-0 shadow-lg">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-violet-600" />
+              <BarChart3 className="w-5 h-5 text-blue-600" />
               <CardTitle>Evolucao do MRR</CardTitle>
             </div>
             <CardDescription>Receita mensal recorrente dos ultimos 6 meses</CardDescription>
@@ -440,8 +440,8 @@ export default function AdminDashboard() {
                   <AreaChart data={mrrHistory}>
                     <defs>
                       <linearGradient id="colorMRR" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -462,7 +462,7 @@ export default function AdminDashboard() {
                     <Area
                       type="monotone"
                       dataKey="mrr"
-                      stroke="#8b5cf6"
+                      stroke="#3b82f6"
                       strokeWidth={3}
                       fill="url(#colorMRR)"
                     />
@@ -559,7 +559,7 @@ export default function AdminDashboard() {
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-violet-600" />
+              <Activity className="w-5 h-5 text-blue-600" />
               Taxa de Conversao
             </CardTitle>
             <CardDescription>Porcentagem de organizacoes pagantes</CardDescription>
@@ -569,7 +569,7 @@ export default function AdminDashboard() {
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">Conversao para plano pago</span>
-                  <span className="text-2xl font-bold text-violet-600">
+                  <span className="text-2xl font-bold text-blue-600">
                     {((stats.payingOrgs / stats.totalOrganizations) * 100).toFixed(1)}%
                   </span>
                 </div>
@@ -593,7 +593,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-violet-600" />
+                <Building2 className="w-5 h-5 text-blue-600" />
                 Organizacoes Recentes
               </CardTitle>
               <CardDescription>Ultimas organizacoes cadastradas na plataforma</CardDescription>
@@ -602,7 +602,7 @@ export default function AdminDashboard() {
               variant="outline"
               size="sm"
               onClick={() => navigate(`${prefix}/organizations`)}
-              className="hover:bg-violet-50 hover:text-violet-700 hover:border-violet-300"
+              className="hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300"
             >
               <Eye className="w-4 h-4 mr-2" />
               Ver todas
@@ -630,15 +630,15 @@ export default function AdminDashboard() {
                 return (
                   <div
                     key={org.id}
-                    className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-violet-200 hover:bg-violet-50/50 dark:hover:bg-violet-950/20 transition-all cursor-pointer group"
+                    className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:border-blue-200 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all cursor-pointer group"
                     onClick={() => navigate(`${prefix}/organizations`)}
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-900/50 dark:to-purple-900/50 flex items-center justify-center group-hover:from-violet-200 group-hover:to-purple-200 transition-colors">
-                        <Building2 className="w-6 h-6 text-violet-600" />
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/50 dark:to-blue-800/50 flex items-center justify-center group-hover:from-blue-200 group-hover:to-blue-300 transition-colors">
+                        <Building2 className="w-6 h-6 text-blue-600" />
                       </div>
                       <div>
-                        <p className="font-semibold group-hover:text-violet-700 dark:group-hover:text-violet-300 transition-colors">
+                        <p className="font-semibold group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
                           {org.name}
                         </p>
                         <p className="text-sm text-muted-foreground">

@@ -168,7 +168,7 @@ export default function AdminFinancial() {
       primary: 'bg-gradient-to-br from-blue-500 to-blue-600',
       success: 'bg-gradient-to-br from-emerald-500 to-emerald-600',
       warning: 'bg-gradient-to-br from-amber-500 to-amber-600',
-      purple: 'bg-gradient-to-br from-violet-500 to-violet-600',
+      purple: 'bg-gradient-to-br from-blue-500 to-blue-600',
     };
 
     if (isLoading) {
@@ -434,7 +434,7 @@ export default function AdminFinancial() {
         <Card className="border-0 shadow-lg">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-violet-600" />
+              <Sparkles className="w-5 h-5 text-blue-600" />
               Receita por Plano
             </CardTitle>
             <CardDescription>Distribuicao do MRR</CardDescription>

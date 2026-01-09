@@ -137,7 +137,7 @@ export default function AdminLayout() {
         <div className="flex items-center h-20 px-4 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-600 text-white font-bold shadow-lg shadow-violet-500/30">
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary via-blue-600 to-blue-700 text-white font-bold shadow-lg shadow-primary/30">
                 <Shield className="w-6 h-6" />
               </div>
               <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900" />
@@ -145,10 +145,10 @@ export default function AdminLayout() {
             {!collapsed && (
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-xl bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
+                  <span className="font-bold text-xl bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
                     Sellx
                   </span>
-                  <Badge className="bg-gradient-to-r from-violet-600 to-purple-600 text-white text-[10px] px-1.5 py-0">
+                  <Badge className="bg-gradient-to-r from-primary to-blue-600 text-white text-[10px] px-1.5 py-0">
                     ADMIN
                   </Badge>
                 </div>
@@ -162,8 +162,8 @@ export default function AdminLayout() {
         {!collapsed && (
           <div className="p-4 mx-3 mt-4 rounded-xl bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/50 border border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10 border-2 border-violet-500/30">
-                <AvatarFallback className="bg-gradient-to-br from-violet-600 to-purple-600 text-white text-sm font-bold">
+              <Avatar className="w-10 h-10 border-2 border-primary/30">
+                <AvatarFallback className="bg-gradient-to-br from-primary to-blue-600 text-white text-sm font-bold">
                   {getInitials(user?.full_name)}
                 </AvatarFallback>
               </Avatar>
@@ -192,7 +192,7 @@ export default function AdminLayout() {
                   className={cn(
                     'group flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200',
                     isActive
-                      ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-500/30'
+                      ? 'bg-gradient-to-r from-primary to-blue-600 text-white shadow-lg shadow-primary/30'
                       : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
                   )}
                 >
@@ -258,8 +258,8 @@ export default function AdminLayout() {
         <header className="flex items-center justify-between h-20 px-8 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-900/50 dark:to-purple-900/50">
-                <Activity className="w-5 h-5 text-violet-600" />
+              <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-blue-100 dark:from-primary/20 dark:to-blue-900/50">
+                <Activity className="w-5 h-5 text-primary" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
@@ -314,8 +314,8 @@ export default function AdminLayout() {
                   variant="ghost"
                   className="flex items-center gap-3 px-3 py-2 h-auto rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
-                  <Avatar className="w-10 h-10 border-2 border-violet-500/30">
-                    <AvatarFallback className="bg-gradient-to-br from-violet-600 to-purple-600 text-white text-sm font-bold">
+                  <Avatar className="w-10 h-10 border-2 border-primary/30">
+                    <AvatarFallback className="bg-gradient-to-br from-primary to-blue-600 text-white text-sm font-bold">
                       {getInitials(user?.full_name)}
                     </AvatarFallback>
                   </Avatar>
@@ -326,10 +326,10 @@ export default function AdminLayout() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64 p-2">
-                <div className="px-3 py-3 mb-2 rounded-lg bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/50 dark:to-purple-950/50">
+                <div className="px-3 py-3 mb-2 rounded-lg bg-gradient-to-br from-primary/5 to-blue-50 dark:from-primary/10 dark:to-blue-950/50">
                   <div className="flex items-center gap-3">
-                    <Avatar className="w-12 h-12 border-2 border-violet-500/30">
-                      <AvatarFallback className="bg-gradient-to-br from-violet-600 to-purple-600 text-white font-bold">
+                    <Avatar className="w-12 h-12 border-2 border-primary/30">
+                      <AvatarFallback className="bg-gradient-to-br from-primary to-blue-600 text-white font-bold">
                         {getInitials(user?.full_name)}
                       </AvatarFallback>
                     </Avatar>
